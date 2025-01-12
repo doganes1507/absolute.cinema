@@ -1,9 +1,19 @@
+using Absolute.Cinema.IdentityService.DataContext;
+using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Configure Postgres database
+builder.Services.AddDbContext<DatabaseContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+
+// Configure Redis database
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+var redis = ConnectionMultiplexer.Connect(redisConnectionString);
+builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
