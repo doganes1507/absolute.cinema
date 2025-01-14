@@ -21,7 +21,7 @@ public class DatabaseContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedOnAdd();
 
-            entity.Property(e => e.Email)
+            entity.Property(e => e.EmailAddress)
                 .IsRequired()
                 .HasMaxLength(64);
             

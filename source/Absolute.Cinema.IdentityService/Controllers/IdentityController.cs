@@ -50,8 +50,8 @@ public class IdentityController : ControllerBase
         throw new NotImplementedException();
     }
 
-    [HttpPost("UpdateEmail")]
-    public async Task<IActionResult> UpdateEmail()
+    [HttpPost("UpdateEmailAddress")]
+    public async Task<IActionResult> UpdateEmailAddress()
     {
         throw new NotImplementedException();
     }
