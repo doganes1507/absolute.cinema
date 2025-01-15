@@ -1,4 +1,7 @@
+using Absolute.Cinema.IdentityService.Configuration;
 using Absolute.Cinema.IdentityService.DataContext;
+using Absolute.Cinema.IdentityService.Interfaces;
+using Absolute.Cinema.IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
@@ -16,6 +19,10 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Mails
+builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
+builder.Services.AddTransient<IMailService, MailService>();
 
 var app = builder.Build();
 

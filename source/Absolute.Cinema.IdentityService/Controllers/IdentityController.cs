@@ -11,25 +11,32 @@ public class IdentityController : ControllerBase
 {
     private readonly DatabaseContext _dbContext;
     private readonly IDatabase _redisDatabase;
-    private readonly IEmailService _emailService;
-    private readonly ITokenProvider _tokenProvider;
+    private readonly IMailService _mailService;
+    //Sprivate readonly ITokenProvider _tokenProvider;
     
     public IdentityController(
         DatabaseContext dbContext,
         IConnectionMultiplexer connectionMultiplexer,
-        IEmailService emailService,
-        ITokenProvider tokenProvider)
+        IMailService mailService //,
+        //ITokenProvider
+        )
     {
         _dbContext = dbContext;
         _redisDatabase = connectionMultiplexer.GetDatabase();
-        _emailService = emailService;
-        _tokenProvider = tokenProvider;
+        _mailService = mailService;
+        //_tokenProvider = tokenProvider;
     }
     
     [HttpPost("SendEmailCode")]
-    public async Task<IActionResult> SendEmailCode()
+    public async Task<IActionResult> SendEmailCode(string email, int code)
     {
-        throw new NotImplementedException();
+        var mailData = _mailService.CreateBaseMail(email, code);
+        var res = await _mailService.SendMailAsync(mailData);
+        
+        if (res)
+            return Ok("Code was successfully sent");
+        
+        return BadRequest("Failed to send email code");
     }
 
     [HttpPost("ConfirmCode")]
