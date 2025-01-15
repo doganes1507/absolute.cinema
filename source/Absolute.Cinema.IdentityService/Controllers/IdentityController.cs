@@ -28,8 +28,13 @@ public class IdentityController : ControllerBase
     }
     
     [HttpPost("SendEmailCode")]
-    public async Task<IActionResult> SendEmailCode(string email, int code)
+    public async Task<IActionResult> SendEmailCode(string email)
     {
+        var rnd = new Random();
+        var code = rnd.Next(100000, 999999);
+        
+        await _redisDatabase.StringSetAsync(email, code.ToString());
+        
         var mailData = _mailService.CreateBaseMail(email, code);
         var res = await _mailService.SendMailAsync(mailData);
         
