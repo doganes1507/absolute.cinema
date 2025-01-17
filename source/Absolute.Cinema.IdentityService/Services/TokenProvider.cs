@@ -34,7 +34,7 @@ public class TokenProvider(IConfiguration configuration) : ITokenProvider
         return handler.CreateToken(tokenDescriptor);
     }
 
-    public string GetRefreshToken(User user)
+    public string GetRefreshToken()
     {
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     }

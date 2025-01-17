@@ -10,20 +10,23 @@ namespace Absolute.Cinema.IdentityService.Controllers;
 public class IdentityController : ControllerBase
 {
     private readonly DatabaseContext _dbContext;
-    private readonly IDatabase _redisDatabase;
+    private readonly IConnectionMultiplexer _redisConnectionMultiplexer;
     private readonly IEmailService _emailService;
     private readonly ITokenProvider _tokenProvider;
+    private readonly IConfiguration _configuration;
     
     public IdentityController(
         DatabaseContext dbContext,
         IConnectionMultiplexer connectionMultiplexer,
         IEmailService emailService,
-        ITokenProvider tokenProvider)
+        ITokenProvider tokenProvider,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
-        _redisDatabase = connectionMultiplexer.GetDatabase();
+        _redisConnectionMultiplexer = connectionMultiplexer;
         _emailService = emailService;
         _tokenProvider = tokenProvider;
+        _configuration = configuration;
     }
     
     [HttpPost("SendEmailCode")]
@@ -63,8 +66,25 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("RefreshToken")]
-    public async Task<IActionResult> RefreshToken()
+    public async Task<IActionResult> RefreshToken(string userId, string oldRefreshToken)
     {
-        throw new NotImplementedException();
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null)
+        {
+            return NotFound("User not found");
+        }
+        
+        var redis = _redisConnectionMultiplexer.GetDatabase(_configuration.GetValue<int>("Redis:RefreshTokenDatabaseId"));
+        if (await redis.StringGetAsync(userId) != oldRefreshToken)
+        {
+            return BadRequest("Refresh token is expired, invalid, or not found");
+        }
+        
+        var newAccessToken = _tokenProvider.GetAccessToken(user);
+        var newRefreshToken = _tokenProvider.GetRefreshToken();
+        
+        redis.StringSet(userId, newRefreshToken);
+
+        return Ok(new { newAccessToken, newRefreshToken });
     }
 }
