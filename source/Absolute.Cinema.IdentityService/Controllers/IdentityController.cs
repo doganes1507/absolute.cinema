@@ -1,4 +1,4 @@
-using Absolute.Cinema.IdentityService.DataContext;
+using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
@@ -10,20 +10,20 @@ namespace Absolute.Cinema.IdentityService.Controllers;
 public class IdentityController : ControllerBase
 {
     private readonly DatabaseContext _dbContext;
-    private readonly IConnectionMultiplexer _redisConnectionMultiplexer;
+    private readonly RedisCacheService _redis;
     private readonly IEmailService _emailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
     
     public IdentityController(
         DatabaseContext dbContext,
-        IConnectionMultiplexer connectionMultiplexer,
+        RedisCacheService redis,
         IEmailService emailService,
         ITokenProvider tokenProvider,
         IConfiguration configuration)
     {
         _dbContext = dbContext;
-        _redisConnectionMultiplexer = connectionMultiplexer;
+        _redis = redis;
         _emailService = emailService;
         _tokenProvider = tokenProvider;
         _configuration = configuration;
@@ -74,8 +74,7 @@ public class IdentityController : ControllerBase
             return NotFound("User not found");
         }
         
-        var redis = _redisConnectionMultiplexer.GetDatabase(_configuration.GetValue<int>("Redis:RefreshTokenDatabaseId"));
-        if (await redis.StringGetAsync(userId) != oldRefreshToken)
+        if (await _redis.RefreshTokensDb.StringGetAsync(userId) != oldRefreshToken)
         {
             return BadRequest("Refresh token is expired, invalid, or not found");
         }
@@ -83,7 +82,7 @@ public class IdentityController : ControllerBase
         var newAccessToken = _tokenProvider.GetAccessToken(user);
         var newRefreshToken = _tokenProvider.GetRefreshToken();
         
-        redis.StringSet(userId, newRefreshToken);
+        _redis.RefreshTokensDb.StringSet(userId, newRefreshToken);
 
         return Ok(new { newAccessToken, newRefreshToken });
     }

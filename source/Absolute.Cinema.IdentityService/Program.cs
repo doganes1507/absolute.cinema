@@ -1,5 +1,5 @@
 using System.Text;
-using Absolute.Cinema.IdentityService.DataContext;
+using Absolute.Cinema.IdentityService.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -12,9 +12,7 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
 // Configure Redis database
-var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
-var redis = ConnectionMultiplexer.Connect(redisConnectionString);
-builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+builder.Services.AddSingleton<RedisCacheService>();
 
 //Configure JWT Authentication and Authorization
 var accessTokenSecretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
