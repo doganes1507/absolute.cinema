@@ -1,6 +1,9 @@
 using System.Text;
 using Absolute.Cinema.IdentityService.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Absolute.Cinema.IdentityService.Configuration;
+using Absolute.Cinema.IdentityService.Interfaces;
+using Absolute.Cinema.IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
@@ -13,6 +16,10 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
 
 // Configure Redis database
 builder.Services.AddSingleton<RedisCacheService>();
+
+// Configure Email sender
+builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
+builder.Services.AddTransient<IMailService, MailService>();
 
 //Configure JWT Authentication and Authorization
 var accessTokenSecretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];

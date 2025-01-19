@@ -11,28 +11,39 @@ public class IdentityController : ControllerBase
 {
     private readonly DatabaseContext _dbContext;
     private readonly RedisCacheService _redis;
-    private readonly IEmailService _emailService;
+    private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
     
     public IdentityController(
         DatabaseContext dbContext,
         RedisCacheService redis,
-        IEmailService emailService,
+        IMailService mailService,
         ITokenProvider tokenProvider,
         IConfiguration configuration)
     {
         _dbContext = dbContext;
         _redis = redis;
-        _emailService = emailService;
+        _mailService = mailService;
         _tokenProvider = tokenProvider;
         _configuration = configuration;
     }
     
     [HttpPost("SendEmailCode")]
-    public async Task<IActionResult> SendEmailCode()
+    public async Task<IActionResult> SendEmailCode(string email)
     {
-        throw new NotImplementedException();
+        var rnd = new Random();
+        var code = rnd.Next(100000, 999999);
+        
+        await _redisDatabase.StringSetAsync(email, code.ToString());
+        
+        var mailData = _mailService.CreateBaseMail(email, code);
+        var res = await _mailService.SendMailAsync(mailData);
+        
+        if (res)
+            return Ok("Code was successfully sent");
+        
+        return BadRequest("Failed to send email code");
     }
 
     [HttpPost("ConfirmCode")]
