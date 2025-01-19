@@ -14,41 +14,43 @@ public class MailService(IOptions<MailConfiguration> mailConfig) : IMailService
     
     public async Task<bool> SendMailAsync(MailData mailData)
     {
-        try
-        {
-            var message = new MimeMessage();
-            
+
+        var message = new MimeMessage();
+
+        try {
             message.From.Add(new MailboxAddress(_mailConfig.DisplayName ?? _mailConfig.UserName, _mailConfig.MailFrom));
-            message.Sender = new MailboxAddress(_mailConfig.DisplayName ??_mailConfig.UserName,_mailConfig.MailFrom);
-            
+            message.Sender = new MailboxAddress(_mailConfig.DisplayName ?? _mailConfig.UserName, _mailConfig.MailFrom);
             message.To.Add(MailboxAddress.Parse(mailData.To));
-            
-            var body = new BodyBuilder();
-            message.Subject = mailData.Subject;
-            body.HtmlBody = mailData.Body;
-            message.Body = body.ToMessageBody();
-
-            using var client = new SmtpClient();
-            
-            try {
-                await client.ConnectAsync(_mailConfig.SmtpServer, _mailConfig.SmtpPort, SecureSocketOptions.SslOnConnect);
-                client.AuthenticationMechanisms.Remove("XOAUTH2");
-                await client.AuthenticateAsync(_mailConfig.UserName, _mailConfig.Password);
-                await client.SendAsync(message);
-            }
-            catch (Exception e) {
-                Console.WriteLine(e);
-                throw;
-            }
-            finally {
-                await client.DisconnectAsync(true);
-            }
-
-            return true;
         }
-        catch (Exception) {
+        catch (ParseException) {
+            // Добавить при реализации логирования Unable to parse mail address
             return false;
         }
+
+        var body = new BodyBuilder();
+        message.Subject = mailData.Subject;
+        body.HtmlBody = mailData.Body;
+        message.Body = body.ToMessageBody();
+
+        using var client = new SmtpClient();
+            
+        try {
+            await client.ConnectAsync(_mailConfig.SmtpServer, _mailConfig.SmtpPort, SecureSocketOptions.SslOnConnect);
+            client.AuthenticationMechanisms.Remove("XOAUTH2");
+            await client.AuthenticateAsync(_mailConfig.UserName, _mailConfig.Password);
+            await client.SendAsync(message);
+        }
+        catch (Exception e) {
+            // Добавить при реализации логирования Unable to send mail
+            Console.WriteLine(e);
+            return false;
+        }
+        finally {
+            await client.DisconnectAsync(true);
+        }
+
+        return true;
+
     }
     
     public MailData CreateBaseMail(string email, int code)
