@@ -1,7 +1,7 @@
 using Absolute.Cinema.IdentityService.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace Absolute.Cinema.IdentityService.DataContext;
+namespace Absolute.Cinema.IdentityService.Data;
 
 public class DatabaseContext : DbContext
 {
