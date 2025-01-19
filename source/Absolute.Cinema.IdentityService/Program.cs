@@ -1,5 +1,4 @@
 using Absolute.Cinema.IdentityService.Configuration;
-using Absolute.Cinema.IdentityService.DataContext;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
 using System.Text;
@@ -7,6 +6,7 @@ using Absolute.Cinema.IdentityService.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +27,34 @@ var confirmationTokenIssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.G
 
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
 
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter a valid token",
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] { }
+        }
+    });
+});
+
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer("AccessToken",options =>
     {
@@ -35,6 +63,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = accessTokenIssuerSigningKey,
             
+            ValidateAudience = false,
             ValidateIssuer = true,
             ValidIssuer = validIssuer,
             
@@ -47,13 +76,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = confirmationTokenIssuerSigningKey,
-
+            
+            ValidateAudience = false,
             ValidateIssuer = true,
             ValidIssuer = validIssuer,
 
             ValidateLifetime = true
         };
     });
+builder.Services.AddTransient<ITokenProvider, TokenProvider>();
 
 builder.Services.AddAuthorization();
 

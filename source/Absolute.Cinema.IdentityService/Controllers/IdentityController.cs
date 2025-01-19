@@ -1,6 +1,11 @@
+using System.Security.Claims;
 using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.Interfaces;
+using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
@@ -11,20 +16,20 @@ public class IdentityController : ControllerBase
 {
     private readonly DatabaseContext _dbContext;
     private readonly RedisCacheService _redis;
-    private readonly IEmailService _emailService;
+    private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
     
     public IdentityController(
         DatabaseContext dbContext,
         RedisCacheService redis,
-        IEmailService emailService,
+        IMailService mailService,
         ITokenProvider tokenProvider,
         IConfiguration configuration)
     {
         _dbContext = dbContext;
         _redis = redis;
-        _emailService = emailService;
+        _mailService = mailService;
         _tokenProvider = tokenProvider;
         _configuration = configuration;
     }
@@ -35,33 +40,73 @@ public class IdentityController : ControllerBase
         var rnd = new Random();
         var code = rnd.Next(100000, 999999);
         
-        await _redisDatabase.StringSetAsync(email, code.ToString());
+        await _redis.ConfirmationCodesDb.StringSetAsync(email, code);
         
         var mailData = _mailService.CreateBaseMail(email, code);
-        var res = await _mailService.SendMailAsync(mailData);
         
-        if (res)
-            return Ok("Code was successfully sent");
+        if (await _mailService.SendMailAsync(mailData))
+            return Ok(new {message = "Code was successfully sent"});
         
-        return BadRequest("Failed to send email code");
+        return BadRequest(new {message = "Failed to send email code"});
     }
 
     [HttpPost("ConfirmCode")]
-    public async Task<IActionResult> ConfirmCode()
+    public async Task<IActionResult> ConfirmCode(string email, int code)
     {
-        throw new NotImplementedException();
+        if (await _redis.ConfirmationCodesDb.StringGetDeleteAsync(email) == code)
+            return Ok(_tokenProvider.GetConfirmationToken(email));
+        
+        return BadRequest("Code was not confirmed");
     }
 
     [HttpPost("AuthenticateWithCode")]
+    [Authorize(AuthenticationSchemes = "ConfirmationToken")]
     public async Task<IActionResult> AuthenticateWithCode()
     {
-        throw new NotImplementedException();
+        var email = User.FindFirst(ClaimTypes.Email)?.Value;
+        
+        if (email == null)
+            return Unauthorized();
+
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        if (user != null)
+            return Ok(new 
+            {
+                accessToken = _tokenProvider.GetAccessToken(user),
+                refreshToken = _tokenProvider.GetRefreshToken(),
+                message = "User successfully logged in"
+            });
+        
+        user = new User { EmailAddress = email, HashPassword = null };
+        
+        await _dbContext.Users.AddAsync(user);
+        await _dbContext.SaveChangesAsync();
+        
+        return Ok(new 
+        {
+            accessToken = _tokenProvider.GetAccessToken(user),
+            refreshToken = _tokenProvider.GetRefreshToken(),
+            message = "User successfully registered"
+        });
+        
     }
     
     [HttpPost("AuthenticateWithPassword")]
-    public async Task<IActionResult> AuthenticateWithPassword()
+    public async Task<IActionResult> AuthenticateWithPassword(string email, string password)
     {
-        throw new NotImplementedException();
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        if (user == null)
+            return BadRequest(new { message = "User doesn’t exists" });
+        
+        if (!BCrypt.Net.BCrypt.Verify(password, user.HashPassword))
+            return Unauthorized(new { message = "Invalid credentials"});
+
+        return Ok(new
+        {
+            accessToken = _tokenProvider.GetAccessToken(user),
+            refreshToken = _tokenProvider.GetRefreshToken(),
+            message = "User successfully logged in"
+        });
     }
 
     [HttpPost("UpdateEmailAddress")]
