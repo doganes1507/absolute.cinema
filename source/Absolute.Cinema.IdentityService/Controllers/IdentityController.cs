@@ -1,6 +1,11 @@
+using System.Security.Claims;
 using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.Interfaces;
+using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
@@ -35,33 +40,77 @@ public class IdentityController : ControllerBase
         var rnd = new Random();
         var code = rnd.Next(100000, 999999);
         
-        await _redisDatabase.StringSetAsync(email, code.ToString());
+        await _redis.ConfirmationCodesDb.StringSetAsync(email, code);
         
         var mailData = _mailService.CreateBaseMail(email, code);
-        var res = await _mailService.SendMailAsync(mailData);
         
-        if (res)
-            return Ok("Code was successfully sent");
+        if (await _mailService.SendMailAsync(mailData))
+            return Ok(new {message = "Code was successfully sent"});
         
-        return BadRequest("Failed to send email code");
+        return BadRequest(new {message = "Failed to send email code"});
     }
 
     [HttpPost("ConfirmCode")]
-    public async Task<IActionResult> ConfirmCode()
+    public async Task<IActionResult> ConfirmCode(string email, int code)
     {
-        throw new NotImplementedException();
+        if (await _redis.ConfirmationCodesDb.StringGetAsync(email) != code) 
+            return BadRequest("Code was not confirmed");
+        
+        await _redis.EmailVerificationDb.StringSetAsync(email, true);
+        await _redis.ConfirmationCodesDb.KeyDeleteAsync(email);
+        return Ok("Code was confirmed");
+
     }
 
     [HttpPost("AuthenticateWithCode")]
-    public async Task<IActionResult> AuthenticateWithCode()
+    public async Task<IActionResult> AuthenticateWithCode(string email)
     {
-        throw new NotImplementedException();
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(email);
+        
+        if (confirmed != true)
+            return BadRequest(new {message = "Email wasn't verified"});
+        
+        if (user != null)
+        {
+            return Ok(new
+            {
+                accessToken = _tokenProvider.GetAccessToken(user),
+                refreshToken = _tokenProvider.GetRefreshToken(),
+                message = "User successfully logged in"
+            });
+        }
+
+        user = new User { EmailAddress = email, HashPassword = null };
+        
+        await _dbContext.Users.AddAsync(user);
+        await _dbContext.SaveChangesAsync();
+        
+        return Ok(new 
+        {
+            accessToken = _tokenProvider.GetAccessToken(user),
+            refreshToken = _tokenProvider.GetRefreshToken(),
+            message = "User successfully registered"
+        });
+        
     }
     
     [HttpPost("AuthenticateWithPassword")]
-    public async Task<IActionResult> AuthenticateWithPassword()
+    public async Task<IActionResult> AuthenticateWithPassword(string email, string password)
     {
-        throw new NotImplementedException();
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        if (user == null)
+            return BadRequest(new { message = "User doesn’t exists" });
+        
+        if (!BCrypt.Net.BCrypt.Verify(password, user.HashPassword))
+            return Unauthorized(new { message = "Invalid credentials"});
+
+        return Ok(new
+        {
+            accessToken = _tokenProvider.GetAccessToken(user),
+            refreshToken = _tokenProvider.GetRefreshToken(),
+            message = "User successfully logged in"
+        });
     }
 
     [HttpPost("UpdateEmailAddress")]
