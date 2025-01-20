@@ -1,3 +1,6 @@
+using System.Text;
+using Absolute.Cinema.IdentityService.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Absolute.Cinema.IdentityService.Configuration;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
@@ -18,11 +21,36 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
 // Configure Redis database
 builder.Services.AddSingleton<RedisCacheService>();
 
+// Configure Email sender
+builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
+builder.Services.AddTransient<IMailService, MailService>();
+
+// Configure Token provider
+builder.Services.AddTransient<ITokenProvider, TokenProvider>();
+
 //Configure JWT Authentication and Authorization
 var accessTokenSecretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
 var accessTokenIssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(accessTokenSecretKey));
-
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer("AccessToken",options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = accessTokenIssuerSigningKey,
+            
+            ValidateAudience = false,
+          
+            ValidateIssuer = true,
+            ValidIssuer = validIssuer,
+            
+            ValidateLifetime = true
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddSwaggerGen(c =>
 {
@@ -51,33 +79,9 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer("AccessToken",options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = accessTokenIssuerSigningKey,
-            
-            ValidateAudience = false,
-            ValidateIssuer = true,
-            ValidIssuer = validIssuer,
-            
-            ValidateLifetime = true
-        };
-    });
-builder.Services.AddTransient<ITokenProvider, TokenProvider>();
-
-builder.Services.AddAuthorization();
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-// Mails
-builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
-builder.Services.AddTransient<IMailService, MailService>();
 
 var app = builder.Build();
 
