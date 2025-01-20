@@ -19,7 +19,7 @@ public class IdentityController : ControllerBase
     private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
-    
+
     public IdentityController(
         DatabaseContext dbContext,
         RedisCacheService redis,
@@ -33,14 +33,15 @@ public class IdentityController : ControllerBase
         _tokenProvider = tokenProvider;
         _configuration = configuration;
     }
-    
+
     [HttpPost("SendEmailCode")]
     public async Task<IActionResult> SendEmailCode(string email)
     {
         var rnd = new Random();
         var code = rnd.Next(100000, 999999);
         
-        await _redis.ConfirmationCodesDb.StringSetAsync(email, code);
+        await _redis.ConfirmationCodesDb.StringSetAsync(email, code,
+            TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:ConfirmationCodeExpirationInMinutes")));
         
         var mailData = _mailService.CreateBaseMail(email, code);
         
@@ -94,7 +95,7 @@ public class IdentityController : ControllerBase
         });
         
     }
-    
+
     [HttpPost("AuthenticateWithPassword")]
     public async Task<IActionResult> AuthenticateWithPassword(string email, string password)
     {
@@ -118,7 +119,7 @@ public class IdentityController : ControllerBase
     {
         throw new NotImplementedException();
     }
-    
+
     [HttpPost("UpdatePassword")]
     public async Task<IActionResult> UpdatePassword()
     {
@@ -133,16 +134,17 @@ public class IdentityController : ControllerBase
         {
             return NotFound("User not found");
         }
-        
+
         if (await _redis.RefreshTokensDb.StringGetAsync(userId) != oldRefreshToken)
         {
             return BadRequest("Refresh token is expired, invalid, or not found");
         }
-        
+
         var newAccessToken = _tokenProvider.GetAccessToken(user);
         var newRefreshToken = _tokenProvider.GetRefreshToken();
-        
-        _redis.RefreshTokensDb.StringSet(userId, newRefreshToken);
+
+        _redis.RefreshTokensDb.StringSet(userId, newRefreshToken,
+            TimeSpan.FromDays(_configuration.GetValue<int>("RefreshToken:ExpirationInDays")));
 
         return Ok(new { newAccessToken, newRefreshToken });
     }
