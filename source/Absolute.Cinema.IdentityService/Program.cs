@@ -22,9 +22,6 @@ builder.Services.AddSingleton<RedisCacheService>();
 var accessTokenSecretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
 var accessTokenIssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(accessTokenSecretKey));
 
-var confirmationTokenSecretKey = builder.Configuration["TokenSettings:ConfirmationToken:SecretKey"];
-var confirmationTokenIssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(confirmationTokenSecretKey));
-
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
 
 builder.Services.AddSwaggerGen(c =>
@@ -67,20 +64,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = true,
             ValidIssuer = validIssuer,
             
-            ValidateLifetime = true
-        };
-    })
-    .AddJwtBearer("ConfirmationToken", options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = confirmationTokenIssuerSigningKey,
-            
-            ValidateAudience = false,
-            ValidateIssuer = true,
-            ValidIssuer = validIssuer,
-
             ValidateLifetime = true
         };
     });

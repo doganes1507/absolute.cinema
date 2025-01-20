@@ -14,7 +14,7 @@ public class TokenProvider(IConfiguration configuration) : ITokenProvider
     {
         var secretKey = configuration["TokenSettings:AccessToken:SecretKey"];
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
-        
+
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
         var tokenDescriptor = new SecurityTokenDescriptor
@@ -26,10 +26,11 @@ public class TokenProvider(IConfiguration configuration) : ITokenProvider
                 ]
             ),
             SigningCredentials = credentials,
-            Expires = DateTime.Now.AddMinutes(configuration.GetValue<int>("TokenSettings:AccessToken:ExpirationInMinutes")),
+            Expires = DateTime.Now.AddMinutes(
+                configuration.GetValue<int>("TokenSettings:AccessToken:ExpirationInMinutes")),
             Issuer = configuration["TokenSettings:Common:Issuer"]
         };
-        
+
         var handler = new JsonWebTokenHandler();
         return handler.CreateToken(tokenDescriptor);
     }
@@ -38,27 +39,6 @@ public class TokenProvider(IConfiguration configuration) : ITokenProvider
     {
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     }
+    
 
-    public string GetConfirmationToken(string emailAddress)
-    {
-        var secretKey = configuration["TokenSettings:ConfirmationToken:SecretKey"];
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
-        
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(
-                [
-                    new Claim(JwtRegisteredClaimNames.Email, emailAddress)
-                ]
-            ),
-            SigningCredentials = credentials,
-            Expires = DateTime.Now.AddMinutes(configuration.GetValue<int>("TokenSettings:ConfirmationToken:ExpirationInMinutes")),
-            Issuer = configuration["TokenSettings:Common:Issuer"]
-        };
-        
-        var handler = new JsonWebTokenHandler();
-        return handler.CreateToken(tokenDescriptor);
-    }
 }

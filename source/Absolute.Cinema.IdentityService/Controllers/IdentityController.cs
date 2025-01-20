@@ -53,30 +53,34 @@ public class IdentityController : ControllerBase
     [HttpPost("ConfirmCode")]
     public async Task<IActionResult> ConfirmCode(string email, int code)
     {
-        if (await _redis.ConfirmationCodesDb.StringGetDeleteAsync(email) == code)
-            return Ok(_tokenProvider.GetConfirmationToken(email));
+        if (await _redis.ConfirmationCodesDb.StringGetAsync(email) != code) 
+            return BadRequest("Code was not confirmed");
         
-        return BadRequest("Code was not confirmed");
+        await _redis.EmailVerificationDb.StringSetAsync(email, true);
+        await _redis.ConfirmationCodesDb.KeyDeleteAsync(email);
+        return Ok("Code was confirmed");
+
     }
 
     [HttpPost("AuthenticateWithCode")]
-    [Authorize(AuthenticationSchemes = "ConfirmationToken")]
-    public async Task<IActionResult> AuthenticateWithCode()
+    public async Task<IActionResult> AuthenticateWithCode(string email)
     {
-        var email = User.FindFirst(ClaimTypes.Email)?.Value;
-        
-        if (email == null)
-            return Unauthorized();
-
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(email);
+        
+        if (confirmed != true)
+            return BadRequest(new {message = "Email wasn't verified"});
+        
         if (user != null)
-            return Ok(new 
+        {
+            return Ok(new
             {
                 accessToken = _tokenProvider.GetAccessToken(user),
                 refreshToken = _tokenProvider.GetRefreshToken(),
                 message = "User successfully logged in"
             });
-        
+        }
+
         user = new User { EmailAddress = email, HashPassword = null };
         
         await _dbContext.Users.AddAsync(user);
