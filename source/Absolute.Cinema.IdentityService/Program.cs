@@ -34,7 +34,7 @@ var accessTokenIssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetByte
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer("AccessToken",options =>
+    .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
