@@ -2,11 +2,9 @@ using System.Security.Claims;
 using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
-using Absolute.Cinema.IdentityService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
@@ -55,12 +53,11 @@ public class IdentityController : ControllerBase
     public async Task<IActionResult> ConfirmCode(string email, int code)
     {
         if (await _redis.ConfirmationCodesDb.StringGetAsync(email) != code) 
-            return BadRequest("Code was not confirmed");
+            return BadRequest(new {message = "Code was not confirmed"});
         
         await _redis.EmailVerificationDb.StringSetAsync(email, true);
         await _redis.ConfirmationCodesDb.KeyDeleteAsync(email);
-        return Ok("Code was confirmed");
-
+        return Ok(new {message = "Code was confirmed"});
     }
 
     [HttpPost("AuthenticateWithCode")]
@@ -86,6 +83,8 @@ public class IdentityController : ControllerBase
         
         await _dbContext.Users.AddAsync(user);
         await _dbContext.SaveChangesAsync();
+        
+        // Add user creation request to the message broker queue
         
         return Ok(new 
         {
@@ -114,16 +113,48 @@ public class IdentityController : ControllerBase
         });
     }
 
+    [Authorize]
     [HttpPost("UpdateEmailAddress")]
-    public async Task<IActionResult> UpdateEmailAddress()
+    public async Task<IActionResult> UpdateEmailAddress(string newEmailAddress)
     {
-        throw new NotImplementedException();
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+            return Unauthorized();
+        
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null)
+            return NotFound(new { message = "User not found" });
+
+        if (_redis.EmailVerificationDb.StringGetAsync(newEmailAddress).Result != true)
+        {
+            return BadRequest(new {message = "New Email address was not verified"});
+        }
+        
+        user.EmailAddress = newEmailAddress;
+        _dbContext.Update(user);
+        await _dbContext.SaveChangesAsync();
+        
+        return Ok(new {message = "Email address updated"});
     }
 
+    [Authorize]
     [HttpPost("UpdatePassword")]
-    public async Task<IActionResult> UpdatePassword()
+    public async Task<IActionResult> UpdatePassword(string newPassword)
     {
-        throw new NotImplementedException();
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+            return Unauthorized();
+        
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user == null)
+            return NotFound("User not found");
+
+        user.HashPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        
+        _dbContext.Users.Update(user);
+        await _dbContext.SaveChangesAsync();
+        
+        return Ok("Password was successfully updated");
     }
 
     [HttpPost("RefreshToken")]
@@ -137,7 +168,7 @@ public class IdentityController : ControllerBase
 
         if (await _redis.RefreshTokensDb.StringGetAsync(userId) != oldRefreshToken)
         {
-            return BadRequest("Refresh token is expired, invalid, or not found");
+            return BadRequest(new {message = "Refresh token is expired, invalid, or not found"});
         }
 
         var newAccessToken = _tokenProvider.GetAccessToken(user);
