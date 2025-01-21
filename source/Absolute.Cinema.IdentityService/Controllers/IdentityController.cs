@@ -55,7 +55,7 @@ public class IdentityController : ControllerBase
         if (await _redis.ConfirmationCodesDb.StringGetAsync(email) != code) 
             return BadRequest(new {message = "Code was not confirmed"});
         
-        await _redis.EmailVerificationDb.StringSetAsync(email, true);
+        await _redis.EmailVerificationDb.StringSetAsync(email, true, TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:EmailVerificationExpirationInMinutes")));
         await _redis.ConfirmationCodesDb.KeyDeleteAsync(email);
         return Ok(new {message = "Code was confirmed"});
     }
@@ -63,36 +63,38 @@ public class IdentityController : ControllerBase
     [HttpPost("AuthenticateWithCode")]
     public async Task<IActionResult> AuthenticateWithCode(string email)
     {
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
         var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(email);
         
         if (confirmed != true)
             return BadRequest(new {message = "Email wasn't verified"});
+
+        var message = "User successfully logged in";
         
-        if (user != null)
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        if (user == null)
         {
-            return Ok(new
-            {
-                accessToken = _tokenProvider.GetAccessToken(user),
-                refreshToken = _tokenProvider.GetRefreshToken(),
-                message = "User successfully logged in"
-            });
+            user = new User { EmailAddress = email, HashPassword = null };
+        
+            await _dbContext.Users.AddAsync(user);
+            await _dbContext.SaveChangesAsync();
+        
+            // Add user creation request to the message broker queue
+            
+            message = "User successfully registered";
         }
 
-        user = new User { EmailAddress = email, HashPassword = null };
+        var accessToken = _tokenProvider.GetAccessToken(user);
+        var refreshToken = _tokenProvider.GetRefreshToken();
         
-        await _dbContext.Users.AddAsync(user);
-        await _dbContext.SaveChangesAsync();
-        
-        // Add user creation request to the message broker queue
+        await _redis.RefreshTokensDb.StringSetAsync(user.Id.ToString(), refreshToken,
+            TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")));
         
         return Ok(new 
         {
-            accessToken = _tokenProvider.GetAccessToken(user),
-            refreshToken = _tokenProvider.GetRefreshToken(),
-            message = "User successfully registered"
+            accessToken,
+            refreshToken,
+            message
         });
-        
     }
 
     [HttpPost("AuthenticateWithPassword")]
@@ -105,10 +107,16 @@ public class IdentityController : ControllerBase
         if (!BCrypt.Net.BCrypt.Verify(password, user.HashPassword))
             return Unauthorized(new { message = "Invalid credentials"});
 
+        var accessToken = _tokenProvider.GetAccessToken(user);
+        var refreshToken = _tokenProvider.GetRefreshToken();
+        
+        await _redis.RefreshTokensDb.StringSetAsync(user.Id.ToString(), refreshToken,
+            TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")));
+        
         return Ok(new
         {
-            accessToken = _tokenProvider.GetAccessToken(user),
-            refreshToken = _tokenProvider.GetRefreshToken(),
+            accessToken,
+            refreshToken,
             message = "User successfully logged in"
         });
     }
@@ -145,7 +153,7 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _dbContext.Users.FindAsync(userId);
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound("User not found");
 
@@ -160,7 +168,7 @@ public class IdentityController : ControllerBase
     [HttpPost("RefreshToken")]
     public async Task<IActionResult> RefreshToken(string userId, string oldRefreshToken)
     {
-        var user = await _dbContext.Users.FindAsync(userId);
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
         {
             return NotFound("User not found");
@@ -174,9 +182,14 @@ public class IdentityController : ControllerBase
         var newAccessToken = _tokenProvider.GetAccessToken(user);
         var newRefreshToken = _tokenProvider.GetRefreshToken();
 
-        _redis.RefreshTokensDb.StringSet(userId, newRefreshToken,
-            TimeSpan.FromDays(_configuration.GetValue<int>("RefreshToken:ExpirationInDays")));
+        await _redis.RefreshTokensDb.StringSetAsync(userId, newRefreshToken,
+            TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")));
 
-        return Ok(new { newAccessToken, newRefreshToken });
+        return Ok(new
+        {
+            newAccessToken,
+            newRefreshToken,
+            message = ""
+        });
     }
 }
