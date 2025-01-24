@@ -1,0 +1,34 @@
+networks:
+  public:
+    driver: bridge
+  internal:
+    driver: bridge
+
+services:
+  absolute.cinema.identity-service:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+    ports:
+      - "10001:8080"
+      - "10000:8081"
+    networks:
+      - public
+      - internal
+
+  identity-service.postgres:
+    image: postgres:latest
+    networks:
+      - internal
+    environment:
+      - POSTGRES_DB=identity_service_db
+      - POSTGRES_USER=identity-service
+      - POSTGRES_PASSWORD=X9n$3k!7P@ql#B5rT
+#    volumes:
+#      - :var/lib/postgresql/data
+
+  identity-service.redis:
+    image: redis:latest
+    networks:
+      - internal
