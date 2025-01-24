@@ -11,8 +11,8 @@ services:
       context: .
       dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
     ports:
-      - "10001:8080"
-      - "10000:8081"
+      - "10000:8080"
+      - "10001:8081"
     networks:
       - public
       - internal
