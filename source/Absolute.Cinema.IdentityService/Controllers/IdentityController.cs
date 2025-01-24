@@ -133,6 +133,11 @@ public class IdentityController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found" });
 
+        if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == newEmailAddress))
+        {
+            return BadRequest(new {message = "Email is already in use"});
+        }
+        
         if (_redis.EmailVerificationDb.StringGetAsync(newEmailAddress).Result != true)
         {
             return BadRequest(new {message = "New Email address was not verified"});
