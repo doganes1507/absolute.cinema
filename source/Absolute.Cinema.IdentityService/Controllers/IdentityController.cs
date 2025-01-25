@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
+using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
@@ -14,20 +15,23 @@ namespace Absolute.Cinema.IdentityService.Controllers;
 [Route("identity-service")]
 public class IdentityController : ControllerBase
 {
-    private readonly DatabaseContext _dbContext;
+    private readonly IRepository<User> _userRepository;
+    private readonly IRepository<Role> _roleRepository;
     private readonly RedisCacheService _redis;
     private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
     
     public IdentityController(
-        DatabaseContext dbContext,
+        IRepository<User> userRepository,
+        IRepository<Role> roleRepository,
         RedisCacheService redis,
         IMailService mailService,
         ITokenProvider tokenProvider,
         IConfiguration configuration)
     {
-        _dbContext = dbContext;
+        _userRepository = userRepository;
+        _roleRepository = roleRepository;
         _redis = redis;
         _mailService = mailService;
         _tokenProvider = tokenProvider;
@@ -65,7 +69,8 @@ public class IdentityController : ControllerBase
     [HttpPost("AuthenticateWithCode")]
     public async Task<IActionResult> AuthenticateWithCode(string email)
     {
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        var user = await _userRepository.Find(u => u.EmailAddress == email);
+        
         var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(email);
         
         if (confirmed != true)
@@ -80,11 +85,15 @@ public class IdentityController : ControllerBase
                 message = "User successfully logged in"
             });
         }
-
-        user = new User { EmailAddress = email, HashPassword = null };
         
-        await _dbContext.Users.AddAsync(user);
-        await _dbContext.SaveChangesAsync();
+        var role = await _roleRepository.Find(r => r.Name == "User");
+
+        if (role == null)
+            return BadRequest(new {message = "No role for user was found"});
+        
+        user = new User { EmailAddress = email, HashPassword = null, RoleId = role.Id};
+        
+        await _userRepository.Create(user);
         
         return Ok(new 
         {
@@ -98,7 +107,7 @@ public class IdentityController : ControllerBase
     [HttpPost("AuthenticateWithPassword")]
     public async Task<IActionResult> AuthenticateWithPassword(string email, string password)
     {
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        var user = await _userRepository.Find(u => u.EmailAddress == email);
         if (user == null)
             return BadRequest(new { message = "User doesn’t exists" });
         
@@ -128,7 +137,7 @@ public class IdentityController : ControllerBase
     [HttpPost("RefreshToken")]
     public async Task<IActionResult> RefreshToken(string userId, string oldRefreshToken)
     {
-        var user = await _dbContext.Users.FindAsync(userId);
+        var user = await _userRepository.GetById(Guid.Parse(userId));
         if (user == null)
         {
             return NotFound("User not found");

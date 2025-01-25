@@ -3,11 +3,14 @@ using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
 using System.Text;
 using Absolute.Cinema.IdentityService.Data;
+using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
+using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,6 +77,10 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Rep
+builder.Services.AddScoped<IRepository<User>, PostgresRepository<User>>();
+builder.Services.AddScoped<IRepository<Role>, PostgresRepository<Role>>();
 
 // Mails
 builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));

@@ -6,6 +6,7 @@ namespace Absolute.Cinema.IdentityService.Data;
 public class DatabaseContext : DbContext
 {
     public DbSet<User> Users { get; set; }
+    public DbSet<Role> Roles { get; set; }
     
     public DatabaseContext(DbContextOptions<DatabaseContext> options) : base(options)
     {
@@ -25,8 +26,27 @@ public class DatabaseContext : DbContext
                 .IsRequired()
                 .HasMaxLength(64);
             
+            entity.HasIndex(e => e.EmailAddress).IsUnique();
+            
             entity.Property(e => e.HashPassword)
                 .HasMaxLength(256);
+            
+            entity.HasOne(e => e.Role)
+                .WithMany(r => r.Users)
+                .HasForeignKey(e => e.RoleId)
+                .IsRequired();
+        });
+
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(32);
+            
+            entity.HasIndex(e => e.Name).IsUnique();
         });
     }
 }
