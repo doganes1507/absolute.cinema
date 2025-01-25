@@ -6,6 +6,7 @@ using Absolute.Cinema.IdentityService.Validators;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
@@ -13,20 +14,23 @@ namespace Absolute.Cinema.IdentityService.Controllers;
 [Route("identity-service")]
 public class IdentityController : ControllerBase
 {
-    private readonly DatabaseContext _dbContext;
+    private readonly IRepository<User> _userRepository;
+    private readonly IRepository<Role> _roleRepository;
     private readonly RedisCacheService _redis;
     private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
 
     public IdentityController(
-        DatabaseContext dbContext,
+        IRepository<User> userRepository,
+        IRepository<Role> roleRepository,
         RedisCacheService redis,
         IMailService mailService,
         ITokenProvider tokenProvider,
         IConfiguration configuration)
     {
-        _dbContext = dbContext;
+        _userRepository = userRepository;
+        _roleRepository = roleRepository;
         _redis = redis;
         _mailService = mailService;
         _tokenProvider = tokenProvider;
@@ -86,19 +90,22 @@ public class IdentityController : ControllerBase
 
         var message = "User successfully logged in";
         
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        var user = await _userRepository.Find(u => u.EmailAddress == email);
         if (user == null)
         {
-            user = new User { EmailAddress = email, HashPassword = null };
-        
-            await _dbContext.Users.AddAsync(user);
-            await _dbContext.SaveChangesAsync();
+            var role = await _roleRepository.Find(r => r.Name == "User");
+            
+            if (role == null)
+                return BadRequest(new {message = "No role for user was found"});
+            
+            user = new User { EmailAddress = email, HashPassword = null, RoleId = role.Id };
+            await _userRepository.Create(user);
         
             // Add user creation request to the message broker queue
             
             message = "User successfully registered";
         }
-
+        
         var accessToken = _tokenProvider.GetAccessToken(user);
         var refreshToken = _tokenProvider.GetRefreshToken();
         
@@ -130,7 +137,7 @@ public class IdentityController : ControllerBase
             return BadRequest(errors);
         }
         
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
+        var user = await _userRepository.Find(u => u.EmailAddress == email);
         if (user == null)
             return BadRequest(new { message = "User doesn’t exists" });
         
@@ -164,11 +171,11 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _dbContext.Users.FindAsync(userId);
+        var user = await _userRepository.GetById(userId)
         if (user == null)
             return NotFound(new { message = "User not found" });
 
-        if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == newEmailAddress))
+        if (await _userRepository.Find(u => u.EmailAddress == newEmailAddress) != null)
         {
             return BadRequest(new {message = "Email is already in use"});
         }
@@ -179,8 +186,7 @@ public class IdentityController : ControllerBase
         }
         
         user.EmailAddress = newEmailAddress;
-        _dbContext.Update(user);
-        await _dbContext.SaveChangesAsync();
+        await _userRepository.Update(user)
         
         return Ok(new {message = "Email address updated"});
     }
@@ -198,14 +204,12 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+        var user = await _userRepository.GetById(userId);
         if (user == null)
             return NotFound("User not found");
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-        
-        _dbContext.Users.Update(user);
-        await _dbContext.SaveChangesAsync();
+        await _userRepository.Update(user)
         
         return Ok("Password was successfully updated");
     }
@@ -218,7 +222,7 @@ public class IdentityController : ControllerBase
         if (!validationResult.IsValid)
             return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
         
-        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+        var user = await _userRepository.GetById(Guid.Parse(userId));
         if (user == null)
         {
             return NotFound("User not found");

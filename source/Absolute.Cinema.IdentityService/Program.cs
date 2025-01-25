@@ -6,17 +6,24 @@ using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
 using System.Text;
 using Absolute.Cinema.IdentityService.Data;
+using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
+using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Postgres database
 builder.Services.AddDbContext<DatabaseContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+
+// Configure Repository
+builder.Services.AddScoped<IRepository<User>, PostgresRepository<User>>();
+builder.Services.AddScoped<IRepository<Role>, PostgresRepository<Role>>();
 
 // Configure Redis database
 builder.Services.AddSingleton<RedisCacheService>();
