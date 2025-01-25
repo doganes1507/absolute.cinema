@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Validators;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,11 @@ public class IdentityController : ControllerBase
     [HttpPost("SendEmailCode")]
     public async Task<IActionResult> SendEmailCode(string email)
     {
+        var validator = new UserEmailAddressValidator();
+        var validationResult = await validator.ValidateAsync(email);
+        if (!validationResult.IsValid)
+            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+        
         var rnd = new Random();
         var code = rnd.Next(100000, 999999);
         
@@ -52,6 +58,11 @@ public class IdentityController : ControllerBase
     [HttpPost("ConfirmCode")]
     public async Task<IActionResult> ConfirmCode(string email, int code)
     {
+        var validator = new UserEmailAddressValidator();
+        var validationResult = await validator.ValidateAsync(email);
+        if (!validationResult.IsValid)
+            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+        
         if (await _redis.ConfirmationCodesDb.StringGetAsync(email) != code) 
             return BadRequest(new {message = "Code was not confirmed"});
         
@@ -63,6 +74,11 @@ public class IdentityController : ControllerBase
     [HttpPost("AuthenticateWithCode")]
     public async Task<IActionResult> AuthenticateWithCode(string email)
     {
+        var validator = new UserEmailAddressValidator();
+        var validationResult = await validator.ValidateAsync(email);
+        if (!validationResult.IsValid)
+            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+        
         var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(email);
         
         if (confirmed != true)
@@ -100,6 +116,20 @@ public class IdentityController : ControllerBase
     [HttpPost("AuthenticateWithPassword")]
     public async Task<IActionResult> AuthenticateWithPassword(string email, string password)
     {
+        var emailValidator = new UserEmailAddressValidator();
+        var passwordValidator = new UserPasswordValidator();
+        
+        var emailValidationResult = await emailValidator.ValidateAsync(email);
+        var passwordValidationResult = await passwordValidator.ValidateAsync(password);
+
+        if (!emailValidationResult.IsValid || !passwordValidationResult.IsValid)
+        {
+            var errors = new List<string>();
+            errors.AddRange(emailValidationResult.Errors.Select(e => e.ErrorMessage));
+            errors.AddRange(passwordValidationResult.Errors.Select(e => e.ErrorMessage));
+            return BadRequest(errors);
+        }
+        
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.EmailAddress == email);
         if (user == null)
             return BadRequest(new { message = "User doesn’t exists" });
@@ -125,6 +155,11 @@ public class IdentityController : ControllerBase
     [HttpPost("UpdateEmailAddress")]
     public async Task<IActionResult> UpdateEmailAddress(string newEmailAddress)
     {
+        var validator = new UserEmailAddressValidator();
+        var validationResult = await validator.ValidateAsync(newEmailAddress);
+        if (!validationResult.IsValid)
+            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+        
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
@@ -133,6 +168,11 @@ public class IdentityController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found" });
 
+        if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == newEmailAddress))
+        {
+            return BadRequest(new {message = "Email is already in use"});
+        }
+        
         if (_redis.EmailVerificationDb.StringGetAsync(newEmailAddress).Result != true)
         {
             return BadRequest(new {message = "New Email address was not verified"});
@@ -149,6 +189,11 @@ public class IdentityController : ControllerBase
     [HttpPost("UpdatePassword")]
     public async Task<IActionResult> UpdatePassword(string newPassword)
     {
+        var validator = new UserPasswordValidator();
+        var validationResult = await validator.ValidateAsync(newPassword);
+        if (!validationResult.IsValid)
+            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+        
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
@@ -168,6 +213,11 @@ public class IdentityController : ControllerBase
     [HttpPost("RefreshToken")]
     public async Task<IActionResult> RefreshToken(string userId, string oldRefreshToken)
     {
+        var validator = new UserGuidValidator();
+        var validationResult = await validator.ValidateAsync(userId);
+        if (!validationResult.IsValid)
+            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+        
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
         {
