@@ -30,7 +30,7 @@ public class TokenProvider(IConfiguration configuration) : ITokenProvider
                 configuration.GetValue<int>("TokenSettings:AccessToken:ExpirationInMinutes")),
             Issuer = configuration["TokenSettings:Common:Issuer"]
         };
-
+        
         var handler = new JsonWebTokenHandler();
         return handler.CreateToken(tokenDescriptor);
     }
@@ -39,6 +39,4 @@ public class TokenProvider(IConfiguration configuration) : ITokenProvider
     {
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     }
-    
-
 }
