@@ -22,8 +22,8 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
 // Configure Repository
-builder.Services.AddScoped<IRepository<User>, PostgresRepository<User>>();
-builder.Services.AddScoped<IRepository<Role>, PostgresRepository<Role>>();
+builder.Services.AddScoped<IRepository<User>, EntityFrameworkRepository<User>>();
+builder.Services.AddScoped<IRepository<Role>, EntityFrameworkRepository<Role>>();
 
 // Configure Redis database
 builder.Services.AddSingleton<RedisCacheService>();

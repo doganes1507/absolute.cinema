@@ -21,14 +21,14 @@ public class AdminController : ControllerBase
     [HttpPost("CreateUser")]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto input)
     {
-        var role = await _roleRepository.Find(r => r.Name == input.Role);
+        var role = await _roleRepository.FindAsync(r => r.Name == input.Role);
         if (role == null)
             return BadRequest(new { message = "Such role does not exist." });
         
-        if (await _userRepository.Find(u => u.EmailAddress == input.EmailAdress) != null)
+        if (await _userRepository.FindAsync(u => u.EmailAddress == input.EmailAdress) != null)
             return BadRequest(new { message = "Such user already exist." });
         
-        await _userRepository.Create(new User
+        await _userRepository.CreateAsync(new User
         {
             EmailAddress = input.EmailAdress,  
             RoleId = role.Id,
@@ -41,7 +41,7 @@ public class AdminController : ControllerBase
     [HttpPost("CreateRole")]
     public async Task<IActionResult> CreateRole([FromBody] CreateRoleDto input)
     {
-        await _roleRepository.Create(new Role { Name = input.RoleName });
+        await _roleRepository.CreateAsync(new Role { Name = input.RoleName });
         return Ok(new { message = "Role created successfully." });
     }
     
@@ -59,7 +59,7 @@ public class AdminController : ControllerBase
     [HttpGet("GetAllRoles")]
     public async Task<IActionResult> GetAllRoles()
     {
-        var roles = await _roleRepository.GetAll();
+        var roles = await _roleRepository.GetAllAsync();
         return Ok(roles.Select(r => new ResponseRoleDto(r)));
     }
 
@@ -73,7 +73,7 @@ public class AdminController : ControllerBase
 
         if (input.NewRole != null)
         {
-            var role = await _roleRepository.Find(r => r.Name == input.NewRole);
+            var role = await _roleRepository.FindAsync(r => r.Name == input.NewRole);
             
             if (role == null)
                 return BadRequest(new { message = "Such role does not exist." });
@@ -83,7 +83,7 @@ public class AdminController : ControllerBase
 
         if (input.NewEmailAdress != null)
         {
-            if (await _userRepository.Find(u => u.EmailAddress == input.NewEmailAdress) == null)
+            if (await _userRepository.FindAsync(u => u.EmailAddress == input.NewEmailAdress) == null)
                 user.EmailAddress = input.NewEmailAdress;
             else
                 return BadRequest(new { message = "This email already in use." });
@@ -92,7 +92,7 @@ public class AdminController : ControllerBase
         if (input.NewPassword != null)
             user.HashPassword = BCrypt.Net.BCrypt.HashPassword(input.NewPassword);
         
-        await _userRepository.Update(user);
+        await _userRepository.UpdateAsync(user);
         
         return Ok(new { message = "User updated successfully." });
             
@@ -106,7 +106,7 @@ public class AdminController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found." });
 
-        await _userRepository.Remove(user);
+        await _userRepository.RemoveAsync(user);
         
         return Ok(new { message = "User deleted successfully." });
     }
@@ -114,12 +114,12 @@ public class AdminController : ControllerBase
     [HttpDelete("DeleteRole")]
     public async Task<IActionResult> DeleteRole([FromQuery] DeleteRoleDto input)
     {
-        var role = await _roleRepository.Find(r => r.Name == input.RoleName);
+        var role = await _roleRepository.FindAsync(r => r.Name == input.RoleName);
         
         if (role == null)
             return NotFound(new { message = "Role not found." });
         
-        await _roleRepository.Remove(role);
+        await _roleRepository.RemoveAsync(role);
         
         return Ok(new { message = "Role deleted successfully." });
     }
@@ -127,9 +127,9 @@ public class AdminController : ControllerBase
     private async Task<User?> GetUserByEmailOrId(GetOrDeleteUserDto input)
     {
         if (input.UserId != null)
-            return await _userRepository.GetById(Guid.Parse(input.UserId));
+            return await _userRepository.GetByIdAsync(Guid.Parse(input.UserId));
         if (input.Email != null)
-            return await _userRepository.Find(u => u.EmailAddress == input.Email);
+            return await _userRepository.FindAsync(u => u.EmailAddress == input.Email);
 
         return null;
     }
