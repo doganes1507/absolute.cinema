@@ -1,10 +1,9 @@
 using System.Security.Claims;
 using Absolute.Cinema.IdentityService.Data;
-using Absolute.Cinema.IdentityService.DataObjects;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
-using Absolute.Cinema.IdentityService.Validators;
+using Absolute.Cinema.IdentityService.Validators.PropertyValidators;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Role = Absolute.Cinema.IdentityService.Models.Role;
@@ -39,22 +38,15 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("SendEmailCode")]
-    public async Task<IActionResult> SendEmailCode([FromBody] SendEmailCodeDto sendEmailCodeDto)
+    public async Task<IActionResult> SendEmailCode([FromBody] SendEmailCodeDto dto)
     {
-        var email = sendEmailCodeDto.EmailAddress;
-        
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(email);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
         var rnd = new Random();
         var code = rnd.Next(100000, 999999);
         
-        await _redis.ConfirmationCodesDb.StringSetAsync(email, code,
+        await _redis.ConfirmationCodesDb.StringSetAsync(dto.EmailAddress, code,
             TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:ConfirmationCodeExpirationInMinutes")));
         
-        var mailData = _mailService.CreateBaseMail(email, code);
+        var mailData = _mailService.CreateBaseMail(dto.EmailAddress, code);
         
         if (await _mailService.SendMailAsync(mailData))
             return Ok(new {message = "Code was successfully sent"});
@@ -63,42 +55,28 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("ConfirmCode")]
-    public async Task<IActionResult> ConfirmCode([FromBody] ConfirmCodeDto confirmCodeDto)
+    public async Task<IActionResult> ConfirmCode([FromBody] ConfirmCodeDto dto)
     {
-        var email = confirmCodeDto.EmailAddress;
-        var code = confirmCodeDto.Code;
-        
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(email);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
-        if (await _redis.ConfirmationCodesDb.StringGetAsync(email) != code) 
+        if (await _redis.ConfirmationCodesDb.StringGetAsync(dto.EmailAddress) != dto.Code) 
             return BadRequest(new {message = "Code was not confirmed"});
         
-        await _redis.EmailVerificationDb.StringSetAsync(email, true, TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:EmailVerificationExpirationInMinutes")));
-        await _redis.ConfirmationCodesDb.KeyDeleteAsync(email);
+        await _redis.EmailVerificationDb.StringSetAsync(dto.EmailAddress, true, TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:EmailVerificationExpirationInMinutes")));
+        await _redis.ConfirmationCodesDb.KeyDeleteAsync(dto.EmailAddress);
         return Ok(new {message = "Code was confirmed"});
     }
 
     [HttpPost("AuthenticateWithCode")]
-    public async Task<IActionResult> AuthenticateWithCode([FromBody] AuthenticateWithCodeDto authenticateWithCodeDto)
+    public async Task<IActionResult> AuthenticateWithCode([FromBody] AuthenticateWithCodeDto dto)
     {
-        var email = authenticateWithCodeDto.EmailAddress;
-        
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(email);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
-        var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(email);
+        var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(dto.EmailAddress);
         
         if (confirmed != true)
             return BadRequest(new {message = "Email wasn't verified"});
 
         var message = "User successfully logged in";
         
-        var user = await _userRepository.FindAsync(u => u.EmailAddress == email);
+        var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
+
         if (user == null)
         {
             var role = await _roleRepository.FindAsync(r => r.Name == "User");
@@ -106,7 +84,7 @@ public class IdentityController : ControllerBase
             if (role == null)
                 return BadRequest(new {message = "No role for user was found"});
             
-            user = new User { EmailAddress = email, HashPassword = null, RoleId = role.Id };
+            user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
             await _userRepository.CreateAsync(user);
         
             // Add user creation request to the message broker queue
@@ -129,32 +107,16 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("AuthenticateWithPassword")]
-    public async Task<IActionResult> AuthenticateWithPassword([FromBody] AuthenticateWithPasswordDto authenticateWithPasswordDto)
-    {
-        var email = authenticateWithPasswordDto.EmailAddress;
-        var password = authenticateWithPasswordDto.Password;
-        
-        var emailValidator = new UserEmailAddressValidator();
-        var passwordValidator = new UserPasswordValidator();
-        
-        var emailValidationResult = await emailValidator.ValidateAsync(email);
-        var passwordValidationResult = await passwordValidator.ValidateAsync(password);
+    public async Task<IActionResult> AuthenticateWithPassword([FromBody] AuthenticateWithPasswordDto dto)
+    {        
+        var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
 
-        if (!emailValidationResult.IsValid || !passwordValidationResult.IsValid)
-        {
-            var errors = new List<string>();
-            errors.AddRange(emailValidationResult.Errors.Select(e => e.ErrorMessage));
-            errors.AddRange(passwordValidationResult.Errors.Select(e => e.ErrorMessage));
-            return BadRequest(errors);
-        }
-        
-        var user = await _userRepository.FindAsync(u => u.EmailAddress == email);
         if (user == null)
             return BadRequest(new { message = "User doesn’t exists" });
         
-        if (!BCrypt.Net.BCrypt.Verify(password, user.HashPassword))
+        if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.HashPassword))
             return Unauthorized(new { message = "Invalid credentials"});
-
+        
         var accessToken = _tokenProvider.GetAccessToken(user);
         var refreshToken = _tokenProvider.GetRefreshToken();
         
@@ -171,15 +133,8 @@ public class IdentityController : ControllerBase
 
     [Authorize]
     [HttpPost("UpdateEmailAddress")]
-    public async Task<IActionResult> UpdateEmailAddress([FromBody] UpdateEmailAddressDto updateEmailAddressDto)
+    public async Task<IActionResult> UpdateEmailAddress([FromBody] UpdateEmailAddressDto dto)
     {
-        var newEmailAddress = updateEmailAddressDto.NewEmailAddress;
-        
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(newEmailAddress);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
@@ -188,17 +143,17 @@ public class IdentityController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found" });
 
-        if (await _userRepository.FindAsync(u => u.EmailAddress == newEmailAddress) != null)
+        if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
         {
             return BadRequest(new {message = "Email is already in use"});
         }
         
-        if (_redis.EmailVerificationDb.StringGetAsync(newEmailAddress).Result != true)
+        if (_redis.EmailVerificationDb.StringGetAsync(dto.NewEmailAddress).Result != true)
         {
             return BadRequest(new {message = "New Email address was not verified"});
         }
         
-        user.EmailAddress = newEmailAddress;
+        user.EmailAddress = dto.NewEmailAddress;
         await _userRepository.UpdateAsync(user);
         
         return Ok(new {message = "Email address updated"});
@@ -206,15 +161,8 @@ public class IdentityController : ControllerBase
 
     [Authorize]
     [HttpPost("UpdatePassword")]
-    public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDto updatePasswordDto)
+    public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDto dto)
     {
-        var newPassword = updatePasswordDto.NewPassword;
-        
-        var validator = new UserPasswordValidator();
-        var validationResult = await validator.ValidateAsync(newPassword);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
@@ -223,30 +171,23 @@ public class IdentityController : ControllerBase
         if (user == null)
             return NotFound("User not found");
 
-        user.HashPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         await _userRepository.UpdateAsync(user);
         
         return Ok("Password was successfully updated");
     }
 
     [HttpPost("RefreshToken")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto refreshTokenDto)
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
     {
-        var userId = refreshTokenDto.UserId;
-        var oldRefreshToken = refreshTokenDto.OldRefreshToken;
-        
-        var validator = new UserGuidValidator();
-        var validationResult = await validator.ValidateAsync(userId);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
-        var user = await _userRepository.GetByIdAsync(Guid.Parse(userId));
+        var user = await _userRepository.GetByIdAsync(Guid.Parse(dto.UserId));
+
         if (user == null)
         {
             return NotFound("User not found");
         }
 
-        if (await _redis.RefreshTokensDb.StringGetAsync(userId) != oldRefreshToken)
+        if (await _redis.RefreshTokensDb.StringGetAsync(dto.UserId) != dto.OldRefreshToken)
         {
             return BadRequest(new {message = "Refresh token is expired, invalid, or not found"});
         }
@@ -254,7 +195,7 @@ public class IdentityController : ControllerBase
         var newAccessToken = _tokenProvider.GetAccessToken(user);
         var newRefreshToken = _tokenProvider.GetRefreshToken();
 
-        await _redis.RefreshTokensDb.StringSetAsync(userId, newRefreshToken,
+        await _redis.RefreshTokensDb.StringSetAsync(dto.UserId, newRefreshToken,
             TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")));
 
         return Ok(new

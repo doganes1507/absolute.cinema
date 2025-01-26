@@ -4,15 +4,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Absolute.Cinema.IdentityService.Configuration;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
-using System.Text;
-using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.IdentityService.Repositories;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using StackExchange.Redis;
 using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,6 +32,10 @@ builder.Services.AddTransient<IMailService, MailService>();
 
 // Configure Token provider
 builder.Services.AddTransient<ITokenProvider, TokenProvider>();
+
+// Configure Validation
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 //Configure JWT Authentication and Authorization
 var accessTokenSecretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
