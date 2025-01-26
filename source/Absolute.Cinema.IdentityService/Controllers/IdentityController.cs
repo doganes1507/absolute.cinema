@@ -1,10 +1,9 @@
 using System.Security.Claims;
 using Absolute.Cinema.IdentityService.Data;
-using Absolute.Cinema.IdentityService.DataObjects;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
-using Absolute.Cinema.IdentityService.Validators;
+using Absolute.Cinema.IdentityService.Validators.PropertyValidators;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Role = Absolute.Cinema.IdentityService.Models.Role;
@@ -43,11 +42,6 @@ public class IdentityController : ControllerBase
     {
         var email = sendEmailCodeDto.EmailAddress;
         
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(email);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
         var rnd = new Random();
         var code = rnd.Next(100000, 999999);
         
@@ -68,11 +62,6 @@ public class IdentityController : ControllerBase
         var email = confirmCodeDto.EmailAddress;
         var code = confirmCodeDto.Code;
         
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(email);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
         if (await _redis.ConfirmationCodesDb.StringGetAsync(email) != code) 
             return BadRequest(new {message = "Code was not confirmed"});
         
@@ -85,11 +74,6 @@ public class IdentityController : ControllerBase
     public async Task<IActionResult> AuthenticateWithCode([FromBody] AuthenticateWithCodeDto authenticateWithCodeDto)
     {
         var email = authenticateWithCodeDto.EmailAddress;
-        
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(email);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
         
         var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(email);
         
@@ -134,27 +118,13 @@ public class IdentityController : ControllerBase
         var email = authenticateWithPasswordDto.EmailAddress;
         var password = authenticateWithPasswordDto.Password;
         
-        var emailValidator = new UserEmailAddressValidator();
-        var passwordValidator = new UserPasswordValidator();
-        
-        var emailValidationResult = await emailValidator.ValidateAsync(email);
-        var passwordValidationResult = await passwordValidator.ValidateAsync(password);
-
-        if (!emailValidationResult.IsValid || !passwordValidationResult.IsValid)
-        {
-            var errors = new List<string>();
-            errors.AddRange(emailValidationResult.Errors.Select(e => e.ErrorMessage));
-            errors.AddRange(passwordValidationResult.Errors.Select(e => e.ErrorMessage));
-            return BadRequest(errors);
-        }
-        
         var user = await _userRepository.Find(u => u.EmailAddress == email);
         if (user == null)
             return BadRequest(new { message = "User doesn’t exists" });
         
         if (!BCrypt.Net.BCrypt.Verify(password, user.HashPassword))
             return Unauthorized(new { message = "Invalid credentials"});
-
+        
         var accessToken = _tokenProvider.GetAccessToken(user);
         var refreshToken = _tokenProvider.GetRefreshToken();
         
@@ -174,11 +144,6 @@ public class IdentityController : ControllerBase
     public async Task<IActionResult> UpdateEmailAddress([FromBody] UpdateEmailAddressDto updateEmailAddressDto)
     {
         var newEmailAddress = updateEmailAddressDto.NewEmailAddress;
-        
-        var validator = new UserEmailAddressValidator();
-        var validationResult = await validator.ValidateAsync(newEmailAddress);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
         
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
@@ -210,11 +175,6 @@ public class IdentityController : ControllerBase
     {
         var newPassword = updatePasswordDto.NewPassword;
         
-        var validator = new UserPasswordValidator();
-        var validationResult = await validator.ValidateAsync(newPassword);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
-        
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
@@ -234,11 +194,6 @@ public class IdentityController : ControllerBase
     {
         var userId = refreshTokenDto.UserId;
         var oldRefreshToken = refreshTokenDto.OldRefreshToken;
-        
-        var validator = new UserGuidValidator();
-        var validationResult = await validator.ValidateAsync(userId);
-        if (!validationResult.IsValid)
-            return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
         
         var user = await _userRepository.GetById(Guid.Parse(userId));
         if (user == null)
