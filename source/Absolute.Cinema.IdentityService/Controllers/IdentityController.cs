@@ -170,8 +170,8 @@ public class IdentityController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
-        
-        var user = await _userRepository.GetById(userId)
+
+        var user = await _userRepository.GetById(Guid.Parse(userId));
         if (user == null)
             return NotFound(new { message = "User not found" });
 
@@ -186,7 +186,7 @@ public class IdentityController : ControllerBase
         }
         
         user.EmailAddress = newEmailAddress;
-        await _userRepository.Update(user)
+        await _userRepository.Update(user);
         
         return Ok(new {message = "Email address updated"});
     }
@@ -204,12 +204,12 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _userRepository.GetById(userId);
+        var user = await _userRepository.GetById(Guid.Parse(userId));
         if (user == null)
             return NotFound("User not found");
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-        await _userRepository.Update(user)
+        await _userRepository.Update(user);
         
         return Ok("Password was successfully updated");
     }
