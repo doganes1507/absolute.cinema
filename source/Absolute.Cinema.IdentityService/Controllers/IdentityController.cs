@@ -1,11 +1,12 @@
 using System.Security.Claims;
 using Absolute.Cinema.IdentityService.Data;
+using Absolute.Cinema.IdentityService.DataObjects;
+using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.IdentityService.Validators;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
@@ -38,8 +39,10 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("SendEmailCode")]
-    public async Task<IActionResult> SendEmailCode(string email)
+    public async Task<IActionResult> SendEmailCode([FromBody] SendEmailCodeDto sendEmailCodeDto)
     {
+        var email = sendEmailCodeDto.EmailAddress;
+        
         var validator = new UserEmailAddressValidator();
         var validationResult = await validator.ValidateAsync(email);
         if (!validationResult.IsValid)
@@ -60,8 +63,11 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("ConfirmCode")]
-    public async Task<IActionResult> ConfirmCode(string email, int code)
+    public async Task<IActionResult> ConfirmCode([FromBody] ConfirmCodeDto confirmCodeDto)
     {
+        var email = confirmCodeDto.EmailAddress;
+        var code = confirmCodeDto.Code;
+        
         var validator = new UserEmailAddressValidator();
         var validationResult = await validator.ValidateAsync(email);
         if (!validationResult.IsValid)
@@ -76,8 +82,10 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("AuthenticateWithCode")]
-    public async Task<IActionResult> AuthenticateWithCode(string email)
+    public async Task<IActionResult> AuthenticateWithCode([FromBody] AuthenticateWithCodeDto authenticateWithCodeDto)
     {
+        var email = authenticateWithCodeDto.EmailAddress;
+        
         var validator = new UserEmailAddressValidator();
         var validationResult = await validator.ValidateAsync(email);
         if (!validationResult.IsValid)
@@ -121,8 +129,11 @@ public class IdentityController : ControllerBase
     }
 
     [HttpPost("AuthenticateWithPassword")]
-    public async Task<IActionResult> AuthenticateWithPassword(string email, string password)
+    public async Task<IActionResult> AuthenticateWithPassword([FromBody] AuthenticateWithPasswordDto authenticateWithPasswordDto)
     {
+        var email = authenticateWithPasswordDto.EmailAddress;
+        var password = authenticateWithPasswordDto.Password;
+        
         var emailValidator = new UserEmailAddressValidator();
         var passwordValidator = new UserPasswordValidator();
         
@@ -160,8 +171,10 @@ public class IdentityController : ControllerBase
 
     [Authorize]
     [HttpPost("UpdateEmailAddress")]
-    public async Task<IActionResult> UpdateEmailAddress(string newEmailAddress)
+    public async Task<IActionResult> UpdateEmailAddress([FromBody] UpdateEmailAddressDto updateEmailAddressDto)
     {
+        var newEmailAddress = updateEmailAddressDto.NewEmailAddress;
+        
         var validator = new UserEmailAddressValidator();
         var validationResult = await validator.ValidateAsync(newEmailAddress);
         if (!validationResult.IsValid)
@@ -170,8 +183,8 @@ public class IdentityController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
-        
-        var user = await _userRepository.GetById(userId)
+
+        var user = await _userRepository.GetById(Guid.Parse(userId));
         if (user == null)
             return NotFound(new { message = "User not found" });
 
@@ -186,15 +199,17 @@ public class IdentityController : ControllerBase
         }
         
         user.EmailAddress = newEmailAddress;
-        await _userRepository.Update(user)
+        await _userRepository.Update(user);
         
         return Ok(new {message = "Email address updated"});
     }
 
     [Authorize]
     [HttpPost("UpdatePassword")]
-    public async Task<IActionResult> UpdatePassword(string newPassword)
+    public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDto updatePasswordDto)
     {
+        var newPassword = updatePasswordDto.NewPassword;
+        
         var validator = new UserPasswordValidator();
         var validationResult = await validator.ValidateAsync(newPassword);
         if (!validationResult.IsValid)
@@ -204,19 +219,22 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _userRepository.GetById(userId);
+        var user = await _userRepository.GetById(Guid.Parse(userId));
         if (user == null)
             return NotFound("User not found");
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-        await _userRepository.Update(user)
+        await _userRepository.Update(user);
         
         return Ok("Password was successfully updated");
     }
 
     [HttpPost("RefreshToken")]
-    public async Task<IActionResult> RefreshToken(string userId, string oldRefreshToken)
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto refreshTokenDto)
     {
+        var userId = refreshTokenDto.UserId;
+        var oldRefreshToken = refreshTokenDto.OldRefreshToken;
+        
         var validator = new UserGuidValidator();
         var validationResult = await validator.ValidateAsync(userId);
         if (!validationResult.IsValid)
