@@ -75,16 +75,17 @@ public class IdentityController : ControllerBase
 
         var message = "User successfully logged in";
         
-        var user = await _userRepository.Find(u => u.EmailAddress == dto.EmailAddress);
+        var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
+
         if (user == null)
         {
-            var role = await _roleRepository.Find(r => r.Name == "User");
+            var role = await _roleRepository.FindAsync(r => r.Name == "User");
             
             if (role == null)
                 return BadRequest(new {message = "No role for user was found"});
             
             user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
-            await _userRepository.Create(user);
+            await _userRepository.CreateAsync(user);
         
             // Add user creation request to the message broker queue
             
@@ -107,8 +108,9 @@ public class IdentityController : ControllerBase
 
     [HttpPost("AuthenticateWithPassword")]
     public async Task<IActionResult> AuthenticateWithPassword([FromBody] AuthenticateWithPasswordDto dto)
-    {
-        var user = await _userRepository.Find(u => u.EmailAddress == dto.EmailAddress);
+    {        
+        var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
+
         if (user == null)
             return BadRequest(new { message = "User doesn’t exists" });
         
@@ -137,11 +139,11 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
 
-        var user = await _userRepository.GetById(Guid.Parse(userId));
+        var user = await _userRepository.GetByIdAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound(new { message = "User not found" });
 
-        if (await _userRepository.Find(u => u.EmailAddress == dto.NewEmailAddress) != null)
+        if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
         {
             return BadRequest(new {message = "Email is already in use"});
         }
@@ -152,7 +154,7 @@ public class IdentityController : ControllerBase
         }
         
         user.EmailAddress = dto.NewEmailAddress;
-        await _userRepository.Update(user);
+        await _userRepository.UpdateAsync(user);
         
         return Ok(new {message = "Email address updated"});
     }
@@ -165,12 +167,12 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _userRepository.GetById(Guid.Parse(userId));
+        var user = await _userRepository.GetByIdAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound("User not found");
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-        await _userRepository.Update(user);
+        await _userRepository.UpdateAsync(user);
         
         return Ok("Password was successfully updated");
     }
@@ -178,7 +180,8 @@ public class IdentityController : ControllerBase
     [HttpPost("RefreshToken")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
     {
-        var user = await _userRepository.GetById(Guid.Parse(dto.UserId));
+        var user = await _userRepository.GetByIdAsync(Guid.Parse(dto.UserId));
+
         if (user == null)
         {
             return NotFound("User not found");

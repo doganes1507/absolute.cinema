@@ -4,10 +4,12 @@ namespace Absolute.Cinema.IdentityService.Interfaces;
 
 public interface IRepository<T>
 {
-    public Task<T?> Find(Expression<Func<T, bool>> predicate);
-    public Task<ICollection<T>> GetAll();
-    public Task<T?> GetById(Guid id);
-    public Task Create(T entity);
-    public Task Update(T entity);
-    public Task Remove(T entity);
+    public Task<T?> FindAsync(Expression<Func<T, bool>> predicate);
+    public Task<ICollection<T>> FindAllAsync(Expression<Func<T, bool>> predicate);
+    public Task<bool> AnyAsync(Expression<Func<T, bool>> predicate);
+    public Task<ICollection<T>> GetAllAsync();
+    public Task<T?> GetByIdAsync(Guid id);
+    public Task CreateAsync(T entity);
+    public Task UpdateAsync(T entity);
+    public Task RemoveAsync(T entity);
 }

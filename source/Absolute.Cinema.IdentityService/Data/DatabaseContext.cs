@@ -12,6 +12,13 @@ public class DatabaseContext : DbContext
     {
         Database.EnsureCreated();
     }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder
+            .UseLazyLoadingProxies();
+        base.OnConfiguring(optionsBuilder);
+    }
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,5 +55,22 @@ public class DatabaseContext : DbContext
             
             entity.HasIndex(e => e.Name).IsUnique();
         });
+        
+        var adminRoleId = Guid.NewGuid();
+        
+        modelBuilder.Entity<Role>().HasData(
+            new Role { Id = adminRoleId, Name = "Admin" },
+            new Role { Id = Guid.NewGuid(), Name = "User" }
+        );
+        
+        modelBuilder.Entity<User>().HasData(
+            new User
+            {
+                Id = Guid.NewGuid(),
+                EmailAddress = "NextM0re@yandex.ru",
+                HashPassword = BCrypt.Net.BCrypt.HashPassword("21872187"),
+                RoleId = adminRoleId
+            }
+        );
     }
 }

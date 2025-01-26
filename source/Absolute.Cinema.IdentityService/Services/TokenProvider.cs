@@ -21,8 +21,9 @@ public class TokenProvider(IConfiguration configuration) : ITokenProvider
         {
             Subject = new ClaimsIdentity(
                 [
-                    new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                    new Claim(JwtRegisteredClaimNames.Email, user.EmailAddress)
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Email, user.EmailAddress),
+                    new Claim(ClaimTypes.Role, user.Role.Name),
                 ]
             ),
             SigningCredentials = credentials,

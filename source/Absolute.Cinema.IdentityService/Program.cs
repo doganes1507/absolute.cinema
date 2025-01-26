@@ -20,8 +20,8 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
 // Configure Repository
-builder.Services.AddScoped<IRepository<User>, PostgresRepository<User>>();
-builder.Services.AddScoped<IRepository<Role>, PostgresRepository<Role>>();
+builder.Services.AddScoped<IRepository<User>, EntityFrameworkRepository<User>>();
+builder.Services.AddScoped<IRepository<Role>, EntityFrameworkRepository<Role>>();
 
 // Configure Redis database
 builder.Services.AddSingleton<RedisCacheService>();
@@ -59,7 +59,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
+});
 
 builder.Services.AddSwaggerGen(c =>
 {
