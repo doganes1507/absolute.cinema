@@ -1,6 +1,7 @@
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
@@ -19,6 +20,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpPost("CreateUser")]
+    [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto input)
     {
         var role = await _roleRepository.FindAsync(r => r.Name == input.Role);
@@ -39,6 +41,7 @@ public class AdminController : ControllerBase
     }
     
     [HttpPost("CreateRole")]
+    [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> CreateRole([FromBody] CreateRoleDto input)
     {
         await _roleRepository.CreateAsync(new Role { Name = input.RoleName });
@@ -46,6 +49,7 @@ public class AdminController : ControllerBase
     }
     
     [HttpGet("GetUserCredentials")]
+    [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> GetUserCredentials([FromQuery] GetOrDeleteUserDto input)
     {
         var user = await GetUserByEmailOrId(input);
@@ -57,6 +61,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("GetAllRoles")]
+    [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> GetAllRoles()
     {
         var roles = await _roleRepository.GetAllAsync();
@@ -64,6 +69,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpPut("UpdateUserCredentials")]
+    [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> UpdateUserCredentials([FromBody] UpdateUserDto input)
     {
         var user = await GetUserByEmailOrId(new GetOrDeleteUserDto {Email = input.userEmail, UserId = input.userId});
@@ -99,6 +105,7 @@ public class AdminController : ControllerBase
     }
     
     [HttpDelete("DeleteUser")]
+    [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> DeleteUser([FromQuery] GetOrDeleteUserDto input)
     {
         var user = await GetUserByEmailOrId(input);
@@ -112,6 +119,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpDelete("DeleteRole")]
+    [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> DeleteRole([FromQuery] DeleteRoleDto input)
     {
         var role = await _roleRepository.FindAsync(r => r.Name == input.RoleName);
