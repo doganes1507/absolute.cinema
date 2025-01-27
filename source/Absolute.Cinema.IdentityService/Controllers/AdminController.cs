@@ -87,10 +87,10 @@ public class AdminController : ControllerBase
             user.RoleId = role.Id;
         }
 
-        if (dto.NewEmailAdress != null)
+        if (dto.NewEmailAddress != null)
         {
-            if (await _userRepository.FindAsync(u => u.EmailAddress == dto.NewEmailAdress) == null)
-                user.EmailAddress = dto.NewEmailAdress;
+            if (await _userRepository.FindAsync(u => u.EmailAddress == dto.NewEmailAddress) == null)
+                user.EmailAddress = dto.NewEmailAddress;
             else
                 return BadRequest(new { message = "This email already in use." });
         }
