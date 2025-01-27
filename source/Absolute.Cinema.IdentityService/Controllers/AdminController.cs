@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
+[ApiController]
+[Route("identity-service/admin")]
 public class AdminController : ControllerBase
 {
     private readonly IRepository<User> _userRepository;
@@ -19,7 +21,7 @@ public class AdminController : ControllerBase
         _roleRepository = roleRepository;
     }
 
-    [HttpPost("CreateUser")]
+    [HttpPost("users")]
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
     {
@@ -40,7 +42,7 @@ public class AdminController : ControllerBase
         return Ok(new { message = "User created successfully." });
     }
     
-    [HttpPost("CreateRole")]
+    [HttpPost("roles")]
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> CreateRole([FromBody] CreateRoleDto dto)
     {
@@ -48,32 +50,36 @@ public class AdminController : ControllerBase
         return Ok(new { message = "Role created successfully." });
     }
     
-    [HttpGet("GetUserCredentials")]
+    [HttpGet("users")]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<IActionResult> GetUserCredentials([FromQuery] GetOrDeleteUserDto dto)
+    public async Task<IActionResult> GetUser(Guid? userId, string? emailAddress)
     {
-        var user = await GetUserByEmailOrId(dto);
-        
+        if (userId == null && emailAddress == null)
+            return BadRequest(new { message = "Either userId or emailAddress must be provided." });
+
+        var user = userId != null 
+            ? await _userRepository.GetByIdAsync(userId.Value)
+            : await _userRepository.FindAsync(u => u.EmailAddress == emailAddress);
+
         if (user == null)
             return NotFound(new { message = "User not found." });
-        
-        return Ok(new ResponseUserDto(user));
+
+        return Ok(new UserResponseDto(user));
     }
 
-    [HttpGet("GetAllRoles")]
+    [HttpGet("roles")]
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> GetAllRoles()
     {
         var roles = await _roleRepository.GetAllAsync();
-        return Ok(roles.Select(r => new ResponseRoleDto(r)));
+        return Ok(roles.Select(r => new RoleResponseDto(r)));
     }
 
-    [HttpPut("UpdateUserCredentials")]
+    [HttpPut("users/{userId}")]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<IActionResult> UpdateUserCredentials([FromBody] UpdateUserDto dto)
+    public async Task<IActionResult> UpdateUser([FromRoute] Guid userId, [FromBody] UpdateUserDto dto)
     {
-        var user = await GetUserByEmailOrId(new GetOrDeleteUserDto {Email = dto.userEmail, UserId = dto.userId});
-                
+        var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             return NotFound(new { message = "User not found." });
 
@@ -89,10 +95,10 @@ public class AdminController : ControllerBase
 
         if (dto.NewEmailAddress != null)
         {
-            if (await _userRepository.FindAsync(u => u.EmailAddress == dto.NewEmailAddress) == null)
-                user.EmailAddress = dto.NewEmailAddress;
-            else
+            if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
                 return BadRequest(new { message = "This email already in use." });
+            
+            user.EmailAddress = dto.NewEmailAddress;
         }
 
         if (dto.NewPassword != null)
@@ -104,11 +110,11 @@ public class AdminController : ControllerBase
             
     }
     
-    [HttpDelete("DeleteUser")]
+    [HttpDelete("users/{userId}")]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<IActionResult> DeleteUser([FromQuery] GetOrDeleteUserDto dto)
+    public async Task<IActionResult> DeleteUser([FromRoute] Guid userId)
     {
-        var user = await GetUserByEmailOrId(dto);
+        var user = await _userRepository.GetByIdAsync(userId);
         
         if (user == null)
             return NotFound(new { message = "User not found." });
@@ -118,11 +124,11 @@ public class AdminController : ControllerBase
         return Ok(new { message = "User deleted successfully." });
     }
 
-    [HttpDelete("DeleteRole")]
+    [HttpDelete("roles/{roleName}")]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<IActionResult> DeleteRole([FromQuery] DeleteRoleDto dto)
+    public async Task<IActionResult> DeleteRole([FromRoute] string roleName)
     {
-        var role = await _roleRepository.FindAsync(r => r.Name == dto.RoleName);
+        var role = await _roleRepository.FindAsync(r => r.Name == roleName);
         
         if (role == null)
             return NotFound(new { message = "Role not found." });
@@ -131,16 +137,4 @@ public class AdminController : ControllerBase
         
         return Ok(new { message = "Role deleted successfully." });
     }
-    
-    private async Task<User?> GetUserByEmailOrId(GetOrDeleteUserDto dto)
-    {
-        if (dto.UserId != null)
-            return await _userRepository.GetByIdAsync(Guid.Parse(dto.UserId));
-        if (dto.Email != null)
-            return await _userRepository.FindAsync(u => u.EmailAddress == dto.Email);
-
-        return null;
-    }
-
-
 }
