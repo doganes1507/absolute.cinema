@@ -3,7 +3,6 @@ using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
-using Absolute.Cinema.IdentityService.Validators.PropertyValidators;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Role = Absolute.Cinema.IdentityService.Models.Role;
