@@ -12,7 +12,7 @@ public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
             .SetValidator(new UserEmailAddressValidator());
 
         RuleFor(x => x.Password)
-            .SetValidator(new UserPasswordValidator());
-        //.When(x => !string.IsNullOrEmpty(x.Password));
+            .SetValidator(new UserPasswordValidator())
+            .When(x => !string.IsNullOrEmpty(x.Password));
     }
 }
