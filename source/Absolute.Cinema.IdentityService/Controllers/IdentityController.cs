@@ -179,14 +179,14 @@ public class IdentityController : ControllerBase
     [HttpPost("RefreshToken")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
     {
-        var user = await _userRepository.GetByIdAsync(Guid.Parse(dto.UserId));
+        var user = await _userRepository.GetByIdAsync(dto.UserId);
 
         if (user == null)
         {
             return NotFound("User not found");
         }
 
-        if (await _redis.RefreshTokensDb.StringGetAsync(dto.UserId) != dto.OldRefreshToken)
+        if (await _redis.RefreshTokensDb.StringGetAsync(dto.UserId.ToString()) != dto.OldRefreshToken)
         {
             return BadRequest(new {message = "Refresh token is expired, invalid, or not found"});
         }
@@ -194,7 +194,7 @@ public class IdentityController : ControllerBase
         var newAccessToken = _tokenProvider.GetAccessToken(user);
         var newRefreshToken = _tokenProvider.GetRefreshToken();
 
-        await _redis.RefreshTokensDb.StringSetAsync(dto.UserId, newRefreshToken,
+        await _redis.RefreshTokensDb.StringSetAsync(dto.UserId.ToString(), newRefreshToken,
             TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")));
 
         return Ok(new
