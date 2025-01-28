@@ -26,7 +26,7 @@ public class EntityFrameworkRepository<T> : IRepository<T> where T : class
 
     public async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate)
     {
-        return await _context.Set<T>().AnyAsync();
+        return await _context.Set<T>().AnyAsync(predicate);;
     }
 
     public async Task<ICollection<T>> GetAllAsync()

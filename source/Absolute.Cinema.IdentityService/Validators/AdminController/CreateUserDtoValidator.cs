@@ -8,7 +8,7 @@ public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
 {
     public CreateUserDtoValidator()
     {
-        RuleFor(x => x.EmailAdress)
+        RuleFor(x => x.EmailAddress)
             .SetValidator(new UserEmailAddressValidator());
 
         RuleFor(x => x.Password)

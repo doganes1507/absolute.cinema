@@ -29,12 +29,12 @@ public class AdminController : ControllerBase
         if (role == null)
             return BadRequest(new { message = "Such role does not exist." });
         
-        if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.EmailAdress))
+        if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.EmailAddress))
             return BadRequest(new { message = "Such user already exist." });
         
         await _userRepository.CreateAsync(new User
         {
-            EmailAddress = dto.EmailAdress,  
+            EmailAddress = dto.EmailAddress,  
             RoleId = role.Id,
             HashPassword = dto.Password != null ? BCrypt.Net.BCrypt.HashPassword(dto.Password) : null
         });
