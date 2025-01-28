@@ -34,7 +34,7 @@ public class AdminController : ControllerBase
         
         await _userRepository.CreateAsync(new User
         {
-            EmailAddress = dto.EmailAddress,  
+            EmailAddress = dto.EmailAddress,
             RoleId = role.Id,
             HashPassword = dto.Password != null ? BCrypt.Net.BCrypt.HashPassword(dto.Password) : null
         });
@@ -46,13 +46,16 @@ public class AdminController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> CreateRole([FromBody] CreateRoleDto dto)
     {
+        if (await _roleRepository.AnyAsync(r => r.Name == dto.RoleName))
+            return BadRequest(new { message = "Role with this name already exist." });
+        
         await _roleRepository.CreateAsync(new Role { Name = dto.RoleName });
         return Ok(new { message = "Role created successfully." });
     }
     
     [HttpGet("users")]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<IActionResult> GetUser(Guid? userId, string? emailAddress)
+    public async Task<IActionResult> GetUser([FromQuery]Guid? userId, [FromQuery] string? emailAddress)
     {
         if (userId == null && emailAddress == null)
             return BadRequest(new { message = "Either userId or emailAddress must be provided." });
@@ -107,7 +110,6 @@ public class AdminController : ControllerBase
         await _userRepository.UpdateAsync(user);
         
         return Ok(new { message = "User updated successfully." });
-            
     }
     
     [HttpDelete("users/{userId}")]
