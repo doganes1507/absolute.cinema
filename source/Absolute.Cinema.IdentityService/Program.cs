@@ -39,8 +39,6 @@ builder.Services.AddTransient<ITokenProvider, TokenProvider>();
 
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();
-// builder.Services.AddValidatorsFromAssemblyContaining<Program>();
-builder.Services.AddTransient<IValidator<RefreshTokenDto>, RefreshTokenDtoValidator>();
 builder.Services.AddTransient<IValidator<SendEmailCodeDto>, SendEmailCodeDtoValidator>();
 builder.Services.AddTransient<IValidator<UpdatePasswordDto>, UpdatePasswordDtoValidator>();
 builder.Services.AddTransient<IValidator<UpdateEmailAddressDto>, UpdateEmailAddressDtoValidator>();
