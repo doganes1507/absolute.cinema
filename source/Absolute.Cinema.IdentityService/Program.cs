@@ -2,10 +2,14 @@ using System.Text;
 using Absolute.Cinema.IdentityService.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Absolute.Cinema.IdentityService.Configuration;
+using Absolute.Cinema.IdentityService.DataObjects.AdminController;
+using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.IdentityService.Repositories;
+using Absolute.Cinema.IdentityService.Validators.AdminController;
+using Absolute.Cinema.IdentityService.Validators.IdentityController;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
@@ -35,11 +39,16 @@ builder.Services.AddTransient<ITokenProvider, TokenProvider>();
 
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+builder.Services.AddTransient<IValidator<SendEmailCodeDto>, SendEmailCodeDtoValidator>();
+builder.Services.AddTransient<IValidator<UpdatePasswordDto>, UpdatePasswordDtoValidator>();
+builder.Services.AddTransient<IValidator<UpdateEmailAddressDto>, UpdateEmailAddressDtoValidator>();
+
+builder.Services.AddTransient<IValidator<CreateUserDto>, CreateUserDtoValidator>();
+builder.Services.AddTransient<IValidator<UpdateUserDto>, UpdateUserDtoValidator>();
 
 //Configure JWT Authentication and Authorization
-var accessTokenSecretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
-var accessTokenIssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(accessTokenSecretKey));
+var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
+var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -48,7 +57,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = accessTokenIssuerSigningKey,
+            IssuerSigningKey = issuerSigningKey,
             
             ValidateAudience = false,
           
@@ -59,11 +68,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"));
-    options.AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
-});
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"))
+    .AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
 
 builder.Services.AddSwaggerGen(c =>
 {

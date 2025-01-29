@@ -5,8 +5,8 @@ namespace Absolute.Cinema.IdentityService.Data;
 public class RedisCacheService
 {
     public readonly IDatabase ConfirmationCodesDb;
-    public readonly IDatabase RefreshTokensDb;
     public readonly IDatabase EmailVerificationDb;
+    public readonly IDatabase RefreshTokensDb;
     
     public RedisCacheService(IConfiguration configuration)
     {
@@ -14,11 +14,11 @@ public class RedisCacheService
         var connectionMultiplexer = ConnectionMultiplexer.Connect(connectionString);
         
         var confirmationCodesDatabaseId = configuration.GetValue<int>("Redis:ConfirmationCodeDatabaseId");
-        var refreshTokensDatabaseId = configuration.GetValue<int>("Redis:RefreshTokenDatabaseId");
         var emailVerificationDatabaseId = configuration.GetValue<int>("Redis:EmailVerificationDatabaseId");
+        var refreshTokensDatabaseId = configuration.GetValue<int>("Redis:RefreshTokenDatabaseId");
         
         ConfirmationCodesDb = connectionMultiplexer.GetDatabase(confirmationCodesDatabaseId);
-        RefreshTokensDb = connectionMultiplexer.GetDatabase(refreshTokensDatabaseId);
         EmailVerificationDb = connectionMultiplexer.GetDatabase(emailVerificationDatabaseId);
+        RefreshTokensDb = connectionMultiplexer.GetDatabase(refreshTokensDatabaseId);
     }
 }
