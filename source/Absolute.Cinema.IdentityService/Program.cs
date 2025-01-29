@@ -1,6 +1,21 @@
-using Absolute.Cinema.IdentityService.DataContext;
+using System.Text;
+using Absolute.Cinema.IdentityService.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Absolute.Cinema.IdentityService.Configuration;
+using Absolute.Cinema.IdentityService.DataObjects.AdminController;
+using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
+using Absolute.Cinema.IdentityService.Interfaces;
+using Absolute.Cinema.IdentityService.Services;
+using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Repositories;
+using Absolute.Cinema.IdentityService.Validators.AdminController;
+using Absolute.Cinema.IdentityService.Validators.IdentityController;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,10 +23,81 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<DatabaseContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
+// Configure Repository
+builder.Services.AddScoped<IRepository<User>, EntityFrameworkRepository<User>>();
+builder.Services.AddScoped<IRepository<Role>, EntityFrameworkRepository<Role>>();
+
 // Configure Redis database
-var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
-var redis = ConnectionMultiplexer.Connect(redisConnectionString);
-builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+builder.Services.AddSingleton<RedisCacheService>();
+
+// Configure Email sender
+builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
+builder.Services.AddTransient<IMailService, MailService>();
+
+// Configure Token provider
+builder.Services.AddTransient<ITokenProvider, TokenProvider>();
+
+// Configure Validation
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddTransient<IValidator<SendEmailCodeDto>, SendEmailCodeDtoValidator>();
+builder.Services.AddTransient<IValidator<UpdatePasswordDto>, UpdatePasswordDtoValidator>();
+builder.Services.AddTransient<IValidator<UpdateEmailAddressDto>, UpdateEmailAddressDtoValidator>();
+
+builder.Services.AddTransient<IValidator<CreateUserDto>, CreateUserDtoValidator>();
+builder.Services.AddTransient<IValidator<UpdateUserDto>, UpdateUserDtoValidator>();
+
+//Configure JWT Authentication and Authorization
+var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
+var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = issuerSigningKey,
+            
+            ValidateAudience = false,
+          
+            ValidateIssuer = true,
+            ValidIssuer = validIssuer,
+            
+            ValidateLifetime = true
+        };
+    });
+
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"))
+    .AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
+
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Please enter a valid token",
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] { }
+        }
+    });
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -28,6 +114,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
