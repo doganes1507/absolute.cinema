@@ -25,6 +25,20 @@ services:
     ports:
       - "10100:8080"
       - "10101:8081"
+    networks:
+      - public
+      - internal
+
+  account-service.postgres:
+    image: postgres:latest
+    networks:
+      - internal
+    environment:
+      - POSTGRES_DB=account_service_db
+      - POSTGRES_USER=account-service
+      - POSTGRES_PASSWORD=P@stgR3s!_X9v#2L
+  #    volumes:
+  #      - :var/lib/postgresql/data
 
   identity-service.postgres:
     image: postgres:latest
@@ -33,7 +47,7 @@ services:
     environment:
       - POSTGRES_DB=identity_service_db
       - POSTGRES_USER=identity-service
-      - POSTGRES_PASSWORD=X9n$3k!7P@ql#B5rT
+      - POSTGRES_PASSWORD=X9n$3k!7P@ql#B5r
 #    volumes:
 #      - :var/lib/postgresql/data
 
