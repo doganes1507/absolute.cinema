@@ -16,6 +16,15 @@ services:
     networks:
       - public
       - internal
+  
+  absolute.cinema.account-service:
+    image: absolute.cinema.account-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
+    ports:
+      - "10100:8080"
+      - "10101:8081"
 
   identity-service.postgres:
     image: postgres:latest
