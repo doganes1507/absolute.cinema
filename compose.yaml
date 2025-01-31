@@ -55,3 +55,8 @@ services:
     image: redis:latest
     networks:
       - internal
+  
+  account-service.redis:
+    image: redis:latest
+    networks:
+      - internal

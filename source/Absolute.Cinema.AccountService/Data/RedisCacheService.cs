@@ -19,7 +19,7 @@ public class RedisCacheService
         return value.IsNull ? default : JsonSerializer.Deserialize<T>(value!);
     }
 
-    public async Task<bool> SetAsync<T>(string key, T value, int dbIndex = 0, TimeSpan? expiry = null)
+    public async Task<bool> SetAsync<T>(string key, T value, TimeSpan? expiry = null, int dbIndex = 0)
     {
         var cache = _redis.GetDatabase(dbIndex);
         var json = JsonSerializer.Serialize(value);
