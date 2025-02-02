@@ -59,7 +59,7 @@ public class AccountController : ControllerBase
             return NotFound("User not found.");
         
         if (dto.FirstName != null) user.FirstName = dto.FirstName;
-        if (dto.BirthDate.HasValue) user.DateOfBirth = dto.BirthDate;
+        if (dto.DateOfBirth.HasValue) user.DateOfBirth = dto.DateOfBirth;
         if (dto.Gender.HasValue) user.Gender = dto.Gender.Value;
         
         await _dbContext.SaveChangesAsync();

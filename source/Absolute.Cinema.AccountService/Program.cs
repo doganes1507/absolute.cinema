@@ -1,9 +1,12 @@
 using System.Text;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
+using Absolute.Cinema.AccountService.Handlers;
 using Absolute.Cinema.AccountService.Validators;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using KafkaFlow;
+using KafkaFlow.Serializer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -25,7 +28,7 @@ builder.Services.AddScoped<RedisCacheService>();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddTransient<IValidator<UpdatePersonalInfoDto>, UpdatePersonalInfoDtoValidator>();
 
-//Configure JWT Authentication and Authorization
+// Configure JWT Authentication and Authorization
 var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
 var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
@@ -37,12 +40,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = issuerSigningKey,
-            
+
             ValidateAudience = false,
-          
+
             ValidateIssuer = true,
             ValidIssuer = validIssuer,
-            
+
             ValidateLifetime = true
         };
     });
@@ -78,6 +81,35 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Configure Kafka
+builder.Services.AddScoped<CreateUserHandler>();
+builder.Services.AddKafkaFlowHostedService(
+    kafka => kafka
+        .AddCluster(cluster =>
+                cluster
+                    .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
+                    .AddConsumer(consumer =>
+                        consumer
+                            .Topic(builder.Configuration["KafkaSettings:TopicName"])
+                            .WithGroupId(builder.Configuration["KafkaSettings:GroupId"])
+                            .WithBufferSize(100)
+                            .WithWorkersCount(3)
+                            .WithAutoOffsetReset(AutoOffsetReset.Earliest)
+                            .AddMiddlewares(middlewares => middlewares
+                                .AddDeserializer<JsonCoreDeserializer>()
+                                .AddTypedHandlers(handlers =>
+                                    handlers
+                                        .AddHandler<CreateUserHandler>()
+                                        .WithHandlerLifetime(InstanceLifetime.Scoped)
+                                )
+                            )
+                    )
+        ));
+
+// var provider = builder.Services.BuildServiceProvider();
+// var bus = provider.CreateKafkaBus();
+// await bus.StartAsync();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -91,7 +123,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseHttpsRedirection(); 
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -99,3 +131,4 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+

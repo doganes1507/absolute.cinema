@@ -1,68 +1,12 @@
 networks:
-  public:
-    driver: bridge
   internal:
     driver: bridge
 
 services:
-  absolute.cinema.identity-service:
-    image: absolute.cinema.identity-service
-    build:
-      context: .
-      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
-    ports:
-      - "10000:8080"
-      - "10001:8081"
-    networks:
-      - public
-      - internal
-  
-  absolute.cinema.account-service:
-    image: absolute.cinema.account-service
-    build:
-      context: .
-      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
-    ports:
-      - "10100:8080"
-      - "10101:8081"
-    networks:
-      - public
-      - internal
-
-  account-service.postgres:
-    image: postgres:latest
-    networks:
-      - internal
-    environment:
-      - POSTGRES_DB=account_service_db
-      - POSTGRES_USER=account-service
-      - POSTGRES_PASSWORD=P@stgR3s!_X9v#2L
-  #    volumes:
-  #      - :var/lib/postgresql/data
-
-  identity-service.postgres:
-    image: postgres:latest
-    networks:
-      - internal
-    environment:
-      - POSTGRES_DB=identity_service_db
-      - POSTGRES_USER=identity-service
-      - POSTGRES_PASSWORD=X9n$3k!7P@ql#B5rT
-#    volumes:
-#      - :var/lib/postgresql/data
-
-  identity-service.redis:
-    image: redis:latest
-    networks:
-      - internal
-  
-  account-service.redis:
-    image: redis:latest
-    networks:
-      - internal
-        
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
+    networks:
+      - internal
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -70,9 +14,11 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-
+      
   broker:
     image: confluentinc/cp-server:latest
+    networks:
+      - internal
     hostname: broker
     container_name: broker
     depends_on:
@@ -80,6 +26,7 @@ services:
     ports:
       - "9092:9092"
       - "9101:9101"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
@@ -104,9 +51,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    
 
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
+    networks:
+      - internal
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
@@ -125,5 +75,57 @@ services:
     container_name: kafka
     command: [ "tail", "-f", "/dev/null" ]
     network_mode: "host"
-version: '3'
+    
+  absolute.cinema.identity-service:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+    ports:
+      - "10000:8080"
+      - "10001:8081"
+    networks:
+      - internal
+  
+  absolute.cinema.account-service:
+    image: absolute.cinema.account-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
+    ports:
+      - "10100:8080"
+      - "10101:8081"
+    networks:
+      - internal
 
+  account-service.postgres:
+    image: postgres:latest
+    networks:
+      - internal
+    environment:
+      - POSTGRES_DB=account_service_db
+      - POSTGRES_USER=account-service
+      - POSTGRES_PASSWORD=P@stgR3s!_X9v#2L
+  #    volumes:
+  #      - :var/lib/postgresql/data
+
+  identity-service.postgres:
+    image: postgres:latest
+    networks:
+      - internal
+    environment:
+      - POSTGRES_DB=identity_service_db
+      - POSTGRES_USER=identity-service
+      - POSTGRES_PASSWORD=X9n$3k!7P@ql#B5r
+  #    volumes:
+  #      - :var/lib/postgresql/data
+
+  identity-service.redis:
+    image: redis:latest
+    networks:
+      - internal
+  
+  account-service.redis:
+    image: redis:latest
+    networks:
+      - internal

@@ -38,6 +38,7 @@ public class IdentityController : ControllerBase
         _mailService = mailService;
         _tokenProvider = tokenProvider;
         _configuration = configuration;
+        _producerAccessor = producerAccessor;
     }
 
     [HttpPost("SendEmailCode")]
@@ -90,15 +91,15 @@ public class IdentityController : ControllerBase
             user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
             await _userRepository.CreateAsync(user);
             
-            var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("Kafka:ProducerName"));
+            var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
 
             await producer.ProduceAsync(
-                "Key",
-                "cock"
+                _configuration.GetValue<string>("KafkaSettings:TopicName"),
+                Guid.NewGuid().ToString(),
+                new CreateUserRequest(user)
             );
             
             // Add user creation request to the message broker queue
-            
             message = "User successfully registered";
         }
         

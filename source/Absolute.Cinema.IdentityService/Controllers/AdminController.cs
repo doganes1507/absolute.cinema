@@ -1,6 +1,8 @@
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Models.KafkaRequests;
+using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,13 +14,19 @@ public class AdminController : ControllerBase
 {
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Role> _roleRepository;
+    private readonly IProducerAccessor _producerAccessor;
+    private readonly IConfiguration _configuration;
 
     public AdminController(
         IRepository<User> userRepository,
-        IRepository<Role> roleRepository)
+        IRepository<Role> roleRepository,
+        IProducerAccessor producerAccessor,
+        IConfiguration configuration)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
+        _producerAccessor = producerAccessor;
+        _configuration = configuration;
     }
 
     [HttpPost("users")]
@@ -32,12 +40,21 @@ public class AdminController : ControllerBase
         if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.EmailAddress))
             return BadRequest(new { message = "Such user already exist." });
         
-        await _userRepository.CreateAsync(new User
+        var user = new User
         {
             EmailAddress = dto.EmailAddress,
             RoleId = role.Id,
             HashPassword = dto.Password != null ? BCrypt.Net.BCrypt.HashPassword(dto.Password) : null
-        });
+        };
+        await _userRepository.CreateAsync(user);
+        
+        var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
+
+        await producer.ProduceAsync(
+            _configuration.GetValue<string>("KafkaSettings:TopicName"),
+            Guid.NewGuid().ToString(),
+            new CreateUserRequest(user)
+        );
         
         return Ok(new { message = "User created successfully." });
     }

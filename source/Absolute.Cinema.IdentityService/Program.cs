@@ -63,7 +63,7 @@ builder.Services.AddKafka(
     kafka => kafka
         .AddCluster(cluster =>
         {
-            var topicName = builder.Configuration["TokenSettings:TopicName"];
+            var topicName = builder.Configuration["KafkaSettings:TopicName"];
             cluster
                 .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
                 .CreateTopicIfNotExists(topicName, 1, 1)
