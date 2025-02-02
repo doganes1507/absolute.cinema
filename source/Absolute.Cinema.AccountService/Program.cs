@@ -1,4 +1,8 @@
 using Absolute.Cinema.AccountService.Data;
+using Absolute.Cinema.AccountService.DataObjects;
+using Absolute.Cinema.AccountService.Validators;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
@@ -13,6 +17,9 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 builder.Services.AddScoped<RedisCacheService>();
 
+// Configure Validation
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddTransient<IValidator<UpdatePersonalInfoDto>, UpdatePersonalInfoDtoValidator>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
