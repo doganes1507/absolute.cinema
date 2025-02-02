@@ -10,10 +10,12 @@ public class UpdateUserDtoValidator : AbstractValidator<UpdateUserDto>
     {
         RuleFor(x => x.NewEmailAddress)
             .SetValidator(new UserEmailAddressValidator())
-            .When(x => !string.IsNullOrEmpty(x.NewEmailAddress));
+            .When(x => !string.IsNullOrEmpty(x.NewEmailAddress))
+            .WithMessage("The email address must be provided.");
         
         RuleFor(x => x.NewPassword)
             .SetValidator(new UserPasswordValidator())
-            .When(x => !string.IsNullOrEmpty(x.NewPassword));
+            .When(x => !string.IsNullOrEmpty(x.NewPassword))
+            .WithMessage("The password must be provided.");
     }
 }

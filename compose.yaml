@@ -16,6 +16,29 @@ services:
     networks:
       - public
       - internal
+  
+  absolute.cinema.account-service:
+    image: absolute.cinema.account-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
+    ports:
+      - "10100:8080"
+      - "10101:8081"
+    networks:
+      - public
+      - internal
+
+  account-service.postgres:
+    image: postgres:latest
+    networks:
+      - internal
+    environment:
+      - POSTGRES_DB=account_service_db
+      - POSTGRES_USER=account-service
+      - POSTGRES_PASSWORD=P@stgR3s!_X9v#2L
+  #    volumes:
+  #      - :var/lib/postgresql/data
 
   identity-service.postgres:
     image: postgres:latest
@@ -29,6 +52,11 @@ services:
 #      - :var/lib/postgresql/data
 
   identity-service.redis:
+    image: redis:latest
+    networks:
+      - internal
+  
+  account-service.redis:
     image: redis:latest
     networks:
       - internal
