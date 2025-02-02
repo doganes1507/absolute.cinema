@@ -15,6 +15,13 @@ using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+
+
+using Microsoft.Extensions.DependencyInjection;
+using KafkaFlow.Producers;
+using KafkaFlow.Serializer;
+using KafkaFlow;
+
 using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -46,10 +53,29 @@ builder.Services.AddTransient<IValidator<UpdateEmailAddressDto>, UpdateEmailAddr
 builder.Services.AddTransient<IValidator<CreateUserDto>, CreateUserDtoValidator>();
 builder.Services.AddTransient<IValidator<UpdateUserDto>, UpdateUserDtoValidator>();
 
-//Configure JWT Authentication and Authorization
+// Configure JWT Authentication and Authorization
 var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
 var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
+
+// Configure kafka
+builder.Services.AddKafka(
+    kafka => kafka
+        .AddCluster(cluster =>
+        {
+            var topicName = builder.Configuration["TokenSettings:TopicName"];
+            cluster
+                .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
+                .CreateTopicIfNotExists(topicName, 1, 1)
+                .AddProducer(
+                    builder.Configuration["KafkaSettings:ProducerName"],
+                    producer => producer
+                        .DefaultTopic(topicName)
+                        .AddMiddlewares(middleware => middleware.AddSerializer<JsonCoreSerializer>()
+                        )
+                );
+        })
+);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

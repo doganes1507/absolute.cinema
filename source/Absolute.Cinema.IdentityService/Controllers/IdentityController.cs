@@ -3,6 +3,8 @@ using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Models.KafkaRequests;
+using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Role = Absolute.Cinema.IdentityService.Models.Role;
@@ -19,6 +21,7 @@ public class IdentityController : ControllerBase
     private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
+    private readonly IProducerAccessor _producerAccessor;
 
     public IdentityController(
         IRepository<User> userRepository,
@@ -26,7 +29,8 @@ public class IdentityController : ControllerBase
         RedisCacheService redis,
         IMailService mailService,
         ITokenProvider tokenProvider,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IProducerAccessor producerAccessor)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
@@ -85,7 +89,14 @@ public class IdentityController : ControllerBase
             
             user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
             await _userRepository.CreateAsync(user);
-        
+            
+            var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("Kafka:ProducerName"));
+
+            await producer.ProduceAsync(
+                "Key",
+                "cock"
+            );
+            
             // Add user creation request to the message broker queue
             
             message = "User successfully registered";
