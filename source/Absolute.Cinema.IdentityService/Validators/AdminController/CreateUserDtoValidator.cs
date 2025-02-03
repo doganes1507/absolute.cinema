@@ -9,10 +9,12 @@ public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
     public CreateUserDtoValidator()
     {
         RuleFor(x => x.EmailAddress)
-            .SetValidator(new UserEmailAddressValidator());
+            .SetValidator(new UserEmailAddressValidator())
+            .WithMessage("The email address must be provided.");
 
         RuleFor(x => x.Password)
             .SetValidator(new UserPasswordValidator())
-            .When(x => !string.IsNullOrEmpty(x.Password));
+            .When(x => !string.IsNullOrEmpty(x.Password))
+            .WithMessage("The password must be provided.");
     }
 }
