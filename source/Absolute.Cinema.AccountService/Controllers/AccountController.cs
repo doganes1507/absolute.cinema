@@ -30,18 +30,25 @@ public class AccountController : ControllerBase
         if (userId == null)
             return Unauthorized();
 
-        var key = $"user:{userId}";
-        var user = _cacheService.GetAsync<User>(key).Result;
-        if (user != null)
-            return Ok(user);
+        User? user;
+        
+        if (_cacheService.IsConnected())
+        {
+            user = _cacheService.GetAsync<User>(userId).Result;
+            if (user != null)
+                return Ok(user);
+        }
         
         // compare performance with: user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId));
         user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
-            return NotFound();
+            return NotFound("User not found.");
 
-        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("UserCacheTimeMinutes"));
-        await _cacheService.SetAsync(key, user, expiry);
+        if (_cacheService.IsConnected())
+        {
+            var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("UserCacheTimeMinutes"));
+            await _cacheService.SetAsync(userId, user, expiry);
+        }
         
         return Ok(user);
     }
@@ -59,14 +66,16 @@ public class AccountController : ControllerBase
             return NotFound("User not found.");
         
         if (dto.FirstName != null) user.FirstName = dto.FirstName;
-        if (dto.BirthDate.HasValue) user.DateOfBirth = dto.BirthDate;
+        if (dto.DateOfBirth.HasValue) user.DateOfBirth = dto.DateOfBirth;
         if (dto.Gender.HasValue) user.Gender = dto.Gender.Value;
         
         await _dbContext.SaveChangesAsync();
-        
-        var key = $"user:{userId}";
-        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("UserCacheTimeMinutes"));
-        await _cacheService.SetAsync(key, user, expiry);
+
+        if (_cacheService.IsConnected())
+        {
+            var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("UserCacheTimeMinutes"));
+            await _cacheService.SetAsync(userId, user, expiry);
+        }
         
         return Ok(new {message = "Personal info updated successfully."});
     }
