@@ -82,12 +82,12 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Configure Kafka
-builder.Services.AddScoped<CreateUserHandler>();
 builder.Services.AddKafkaFlowHostedService(
     kafka => kafka
         .AddCluster(cluster =>
                 cluster
                     .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
+                    .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"])
                     .AddConsumer(consumer =>
                         consumer
                             .Topic(builder.Configuration["KafkaSettings:TopicName"])
@@ -114,7 +114,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var app = builder.Build();
+var app = builder.Build(); 
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

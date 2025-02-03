@@ -1,6 +1,6 @@
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.Models;
-using Absolute.Cinema.AccountService.Models.Kafka;
+using Absolute.Cinema.IdentityService.Models.KafkaRequests;
 using KafkaFlow;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,16 +17,18 @@ public class CreateUserHandler : IMessageHandler<CreateUserRequest>
     
     public async Task Handle(IMessageContext context, CreateUserRequest message)
     {
-        if (!await _dbContext.Users.AnyAsync(u => u.EmailAddress == message.EmailAddress))
+        if ( !await _dbContext.Users.AnyAsync(u => u.EmailAddress == message.EmailAddress))
         {
             await _dbContext.Users.AddAsync(new User
             {
-                Id = Guid.Parse(message.UserId),
+                Id = message.UserId,
                 EmailAddress = message.EmailAddress,
-                RegistrationDateTime = DateTime.Now,
+                RegistrationDateTime = DateTime.UtcNow,
             });
                 
             await _dbContext.SaveChangesAsync();
         }
+        
+        // return Task.CompletedTask;
     }
 }

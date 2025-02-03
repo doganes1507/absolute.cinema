@@ -53,7 +53,7 @@ public class AdminController : ControllerBase
         await producer.ProduceAsync(
             _configuration.GetValue<string>("KafkaSettings:TopicName"),
             Guid.NewGuid().ToString(),
-            new CreateUserRequest(user)
+            new CreateUserRequest(user.Id, user.EmailAddress)
         );
         
         return Ok(new { message = "User created successfully." });

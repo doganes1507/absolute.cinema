@@ -96,7 +96,7 @@ public class IdentityController : ControllerBase
             await producer.ProduceAsync(
                 _configuration.GetValue<string>("KafkaSettings:TopicName"),
                 Guid.NewGuid().ToString(),
-                new CreateUserRequest(user)
+                new CreateUserRequest(user.Id, user.EmailAddress)
             );
             
             // Add user creation request to the message broker queue

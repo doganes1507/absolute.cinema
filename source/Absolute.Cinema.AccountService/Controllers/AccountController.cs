@@ -40,7 +40,7 @@ public class AccountController : ControllerBase
         if (user == null)
             return NotFound();
 
-        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("UserCacheTimeMinutes"));
+        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
         await _cacheService.SetAsync(key, user, expiry);
         
         return Ok(user);
@@ -65,7 +65,7 @@ public class AccountController : ControllerBase
         await _dbContext.SaveChangesAsync();
         
         var key = $"user:{userId}";
-        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("UserCacheTimeMinutes"));
+        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
         await _cacheService.SetAsync(key, user, expiry);
         
         return Ok(new {message = "Personal info updated successfully."});
