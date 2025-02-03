@@ -1,12 +1,16 @@
 networks:
-  internal:
+  kafka-network:
+    driver: bridge
+  account:
+    driver: bridge
+  identity:
     driver: bridge
 
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     networks:
-      - internal
+      - kafka-network
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -18,7 +22,7 @@ services:
   broker:
     image: confluentinc/cp-server:latest
     networks:
-      - internal
+      - kafka-network
     hostname: broker
     container_name: broker
     depends_on:
@@ -56,7 +60,7 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
     networks:
-      - internal
+      - kafka-network
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
@@ -85,7 +89,8 @@ services:
       - "10000:8080"
       - "10001:8081"
     networks:
-      - internal
+      - kafka-network
+      - identity
   
   absolute.cinema.account-service:
     image: absolute.cinema.account-service
@@ -96,12 +101,14 @@ services:
       - "10100:8080"
       - "10101:8081"
     networks:
-      - internal
+      - kafka-network
+      - account
 
   account-service.postgres:
     image: postgres:latest
     networks:
-      - internal
+      - kafka-network
+      - account
     environment:
       - POSTGRES_DB=account_service_db
       - POSTGRES_USER=account-service
@@ -112,7 +119,7 @@ services:
   identity-service.postgres:
     image: postgres:latest
     networks:
-      - internal
+      - identity
     environment:
       - POSTGRES_DB=identity_service_db
       - POSTGRES_USER=identity-service
@@ -123,9 +130,9 @@ services:
   identity-service.redis:
     image: redis:latest
     networks:
-      - internal
+      - identity
   
   account-service.redis:
     image: redis:latest
     networks:
-      - internal
+      - account
