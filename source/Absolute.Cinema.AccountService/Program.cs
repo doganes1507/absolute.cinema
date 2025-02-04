@@ -3,6 +3,7 @@ using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
 using Absolute.Cinema.AccountService.Handlers;
 using Absolute.Cinema.AccountService.Validators;
+using Absolute.Cinema.IdentityService.Interfaces;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using KafkaFlow;
@@ -12,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
+using RedisCacheService = Absolute.Cinema.IdentityService.Data.RedisCacheService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,7 +24,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Configure Redis database
 builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
-builder.Services.AddScoped<RedisCacheService>();
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();
@@ -99,7 +101,7 @@ builder.Services.AddKafkaFlowHostedService(
                                 .AddDeserializer<JsonCoreDeserializer>()
                                 .AddTypedHandlers(handlers =>
                                     handlers
-                                        .AddHandler<CreateUserHandler>()
+                                        .AddHandler<SyncUserHandler>()
                                         .WithHandlerLifetime(InstanceLifetime.Scoped)
                                 )
                             )

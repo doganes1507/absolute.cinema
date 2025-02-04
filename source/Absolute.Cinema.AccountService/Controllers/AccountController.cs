@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
 using Absolute.Cinema.AccountService.Models;
+using Absolute.Cinema.IdentityService.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,10 +13,10 @@ namespace Absolute.Cinema.AccountService.Controllers;
 public class AccountController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly RedisCacheService _cacheService;
+    private readonly ICacheService _cacheService;
     private readonly IConfiguration _configuration;
     
-    public AccountController(ApplicationDbContext dbContext, RedisCacheService cacheService, IConfiguration configuration)
+    public AccountController(ApplicationDbContext dbContext, ICacheService cacheService, IConfiguration configuration)
     {
         _dbContext = dbContext;
         _cacheService = cacheService;
@@ -29,12 +30,11 @@ public class AccountController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
-    
-        var key = $"user:{userId}";
+        
         User? user;
         if (_cacheService.IsConnected())
         {
-            user = _cacheService.GetAsync<User>(key).Result;
+            user = _cacheService.GetAsync<User>(userId).Result;
 
             if (user != null)
                 return Ok(user);
@@ -48,7 +48,7 @@ public class AccountController : ControllerBase
         if (_cacheService.IsConnected())
         {
             var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
-            await _cacheService.SetAsync(key, user, expiry);
+            await _cacheService.SetAsync(userId, user, expiry);
         }
 
         return Ok(user);
@@ -71,13 +71,11 @@ public class AccountController : ControllerBase
         if (dto.Gender.HasValue) user.Gender = dto.Gender.Value;
         
         await _dbContext.SaveChangesAsync();
-        
-        var key = $"user:{userId}";
 
         if (_cacheService.IsConnected())
         {
             var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
-            await _cacheService.SetAsync(key, user, expiry);
+            await _cacheService.SetAsync(userId, user, expiry);
         }
 
         return Ok(new {message = "Personal info updated successfully."});
