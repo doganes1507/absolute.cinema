@@ -43,7 +43,7 @@ public class AccountController : ControllerBase
         // compare performance with: user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId));
         user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
-            return NotFound();
+            return NotFound("User not found.");
 
         if (_cacheService.IsConnected())
         {
