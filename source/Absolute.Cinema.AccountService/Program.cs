@@ -1,6 +1,7 @@
 using System.Text;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
+using Absolute.Cinema.AccountService.Services;
 using Absolute.Cinema.AccountService.Validators;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -20,6 +21,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 builder.Services.AddScoped<RedisCacheService>();
+
+// Configure Kafka consumer
+builder.Services.AddHostedService<KafkaConsumer>();
 
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();

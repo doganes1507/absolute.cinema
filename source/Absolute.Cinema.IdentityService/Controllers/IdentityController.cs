@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
@@ -19,6 +20,7 @@ public class IdentityController : ControllerBase
     private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
+    private readonly IKafkaProducer _kafkaProducer;
 
     public IdentityController(
         IRepository<User> userRepository,
@@ -26,7 +28,8 @@ public class IdentityController : ControllerBase
         RedisCacheService redis,
         IMailService mailService,
         ITokenProvider tokenProvider,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IKafkaProducer kafkaProducer)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
@@ -34,6 +37,7 @@ public class IdentityController : ControllerBase
         _mailService = mailService;
         _tokenProvider = tokenProvider;
         _configuration = configuration;
+        _kafkaProducer = kafkaProducer;
     }
 
     [HttpPost("SendEmailCode")]
@@ -41,63 +45,74 @@ public class IdentityController : ControllerBase
     {
         var rnd = new Random();
         var code = rnd.Next(100000, 999999);
-        
+
         await _redis.ConfirmationCodesDb.StringSetAsync(dto.EmailAddress, code,
             TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:ConfirmationCodeExpirationInMinutes")));
-        
+
         var mailData = _mailService.CreateBaseMail(dto.EmailAddress, code);
-        
+
         if (await _mailService.SendMailAsync(mailData))
-            return Ok(new {message = "Code was successfully sent"});
-        
-        return BadRequest(new {message = "Failed to send email code"});
+            return Ok(new { message = "Code was successfully sent" });
+
+        return BadRequest(new { message = "Failed to send email code" });
     }
 
     [HttpPost("ConfirmCode")]
     public async Task<IActionResult> ConfirmCode([FromBody] ConfirmCodeDto dto)
     {
-        if (await _redis.ConfirmationCodesDb.StringGetAsync(dto.EmailAddress) != dto.Code) 
-            return BadRequest(new {message = "Code was not confirmed"});
-        
-        await _redis.EmailVerificationDb.StringSetAsync(dto.EmailAddress, true, TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:EmailVerificationExpirationInMinutes")));
+        if (await _redis.ConfirmationCodesDb.StringGetAsync(dto.EmailAddress) != dto.Code)
+            return BadRequest(new { message = "Code was not confirmed" });
+
+        await _redis.EmailVerificationDb.StringSetAsync(dto.EmailAddress, true,
+            TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:EmailVerificationExpirationInMinutes")));
         await _redis.ConfirmationCodesDb.KeyDeleteAsync(dto.EmailAddress);
-        return Ok(new {message = "Code was confirmed"});
+        return Ok(new { message = "Code was confirmed" });
     }
 
     [HttpPost("AuthenticateWithCode")]
     public async Task<IActionResult> AuthenticateWithCode([FromBody] AuthenticateWithCodeDto dto)
     {
         var confirmed = await _redis.EmailVerificationDb.StringGetDeleteAsync(dto.EmailAddress);
-        
+
         if (confirmed != true)
-            return BadRequest(new {message = "Email wasn't verified"});
+            return BadRequest(new { message = "Email wasn't verified" });
 
         var message = "User successfully logged in";
-        
+
         var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
 
         if (user == null)
         {
             var role = await _roleRepository.FindAsync(r => r.Name == "User");
-            
+
             if (role == null)
-                return BadRequest(new {message = "No role for user was found"});
-            
+                return BadRequest(new { message = "No role for user was found" });
+
             user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
             await _userRepository.CreateAsync(user);
-        
-            // Add user creation request to the message broker queue
+
+            await _kafkaProducer.ProduceAsync(
+                _configuration["Kafka:UserCreationTopic"],
+                user.Id.ToString(),
+                JsonSerializer.Serialize(new KafkaUserCreate
+                {
+                    Id = user.Id,
+                    EmailAddress = user.EmailAddress
+                })
+            );
+            // TODO: Add user creation request to the message broker queue
             
+
             message = "User successfully registered";
         }
-        
+
         var accessToken = _tokenProvider.GetAccessToken(user);
         var refreshToken = _tokenProvider.GetRefreshToken();
-        
+
         await _redis.RefreshTokensDb.StringSetAsync(user.Id.ToString(), refreshToken,
             TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")));
-        
-        return Ok(new 
+
+        return Ok(new
         {
             accessToken,
             refreshToken,
@@ -107,21 +122,21 @@ public class IdentityController : ControllerBase
 
     [HttpPost("AuthenticateWithPassword")]
     public async Task<IActionResult> AuthenticateWithPassword([FromBody] AuthenticateWithPasswordDto dto)
-    {        
+    {
         var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
 
         if (user == null)
             return BadRequest(new { message = "User doesn’t exists" });
-        
+
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.HashPassword))
-            return Unauthorized(new { message = "Invalid credentials"});
-        
+            return Unauthorized(new { message = "Invalid credentials" });
+
         var accessToken = _tokenProvider.GetAccessToken(user);
         var refreshToken = _tokenProvider.GetRefreshToken();
-        
+
         await _redis.RefreshTokensDb.StringSetAsync(user.Id.ToString(), refreshToken,
             TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")));
-        
+
         return Ok(new
         {
             accessToken,
@@ -144,18 +159,20 @@ public class IdentityController : ControllerBase
 
         if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
         {
-            return BadRequest(new {message = "Email is already in use"});
+            return BadRequest(new { message = "Email is already in use" });
         }
-        
+
         if (_redis.EmailVerificationDb.StringGetAsync(dto.NewEmailAddress).Result != true)
         {
-            return BadRequest(new {message = "New Email address was not verified"});
+            return BadRequest(new { message = "New Email address was not verified" });
         }
-        
+
         user.EmailAddress = dto.NewEmailAddress;
         await _userRepository.UpdateAsync(user);
+
+        // TODO: Add user update request to the message broker queue
         
-        return Ok(new {message = "Email address updated"});
+        return Ok(new { message = "Email address updated" });
     }
 
     [Authorize]
@@ -165,14 +182,14 @@ public class IdentityController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
-        
+
         var user = await _userRepository.GetByIdAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound("User not found");
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         await _userRepository.UpdateAsync(user);
-        
+
         return Ok("Password was successfully updated");
     }
 
@@ -188,7 +205,7 @@ public class IdentityController : ControllerBase
 
         if (await _redis.RefreshTokensDb.StringGetAsync(dto.UserId.ToString()) != dto.OldRefreshToken)
         {
-            return BadRequest(new {message = "Refresh token is expired, invalid, or not found"});
+            return BadRequest(new { message = "Refresh token is expired, invalid, or not found" });
         }
 
         var newAccessToken = _tokenProvider.GetAccessToken(user);

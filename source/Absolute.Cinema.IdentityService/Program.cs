@@ -37,6 +37,9 @@ builder.Services.AddTransient<IMailService, MailService>();
 // Configure Token provider
 builder.Services.AddTransient<ITokenProvider, TokenProvider>();
 
+// Configure Kafka producer
+builder.Services.AddSingleton<IKafkaProducer, KafkaProducer>();
+
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddTransient<IValidator<SendEmailCodeDto>, SendEmailCodeDtoValidator>();
