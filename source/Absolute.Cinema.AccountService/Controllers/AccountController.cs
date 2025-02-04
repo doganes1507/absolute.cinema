@@ -29,20 +29,28 @@ public class AccountController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
-
+    
         var key = $"user:{userId}";
-        var user = _cacheService.GetAsync<User>(key).Result;
-        if (user != null)
-            return Ok(user);
-        
+        User? user;
+        if (_cacheService.IsConnected())
+        {
+            user = _cacheService.GetAsync<User>(key).Result;
+
+            if (user != null)
+                return Ok(user);
+        }
+
         // compare performance with: user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId));
         user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound();
 
-        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
-        await _cacheService.SetAsync(key, user, expiry);
-        
+        if (_cacheService.IsConnected())
+        {
+            var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
+            await _cacheService.SetAsync(key, user, expiry);
+        }
+
         return Ok(user);
     }
     
@@ -65,9 +73,13 @@ public class AccountController : ControllerBase
         await _dbContext.SaveChangesAsync();
         
         var key = $"user:{userId}";
-        var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
-        await _cacheService.SetAsync(key, user, expiry);
-        
+
+        if (_cacheService.IsConnected())
+        {
+            var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
+            await _cacheService.SetAsync(key, user, expiry);
+        }
+
         return Ok(new {message = "Personal info updated successfully."});
     }
 }

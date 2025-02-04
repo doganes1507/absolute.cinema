@@ -87,7 +87,7 @@ builder.Services.AddKafkaFlowHostedService(
         .AddCluster(cluster =>
                 cluster
                     .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
-                    .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"])
+                    .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"], 1, 1)
                     .AddConsumer(consumer =>
                         consumer
                             .Topic(builder.Configuration["KafkaSettings:TopicName"])
@@ -105,10 +105,6 @@ builder.Services.AddKafkaFlowHostedService(
                             )
                     )
         ));
-
-// var provider = builder.Services.BuildServiceProvider();
-// var bus = provider.CreateKafkaBus();
-// await bus.StartAsync();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

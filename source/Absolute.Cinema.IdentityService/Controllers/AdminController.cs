@@ -16,17 +16,20 @@ public class AdminController : ControllerBase
     private readonly IRepository<Role> _roleRepository;
     private readonly IProducerAccessor _producerAccessor;
     private readonly IConfiguration _configuration;
+    private readonly ICacheService _cacheService;
 
     public AdminController(
         IRepository<User> userRepository,
         IRepository<Role> roleRepository,
         IProducerAccessor producerAccessor,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ICacheService cacheService)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
         _producerAccessor = producerAccessor;
         _configuration = configuration;
+        _cacheService = cacheService;
     }
 
     [HttpPost("users")]
@@ -74,9 +77,22 @@ public class AdminController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> GetUser([FromQuery]Guid? userId, [FromQuery] string? emailAddress)
     {
+        var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
+        var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
+        
         if (userId == null && emailAddress == null)
             return BadRequest(new { message = "Either userId or emailAddress must be provided." });
+        
+        if (_cacheService.IsConnected(getRequestsDbId))
+        {
+            var userCache = userId != null 
+                ? await _cacheService.GetAsync<UserResponseDto?>(userId.ToString()!, getRequestsDbId)
+                : await _cacheService.GetAsync<UserResponseDto?>(emailAddress!, getRequestsDbId);
 
+            if (userCache != null)
+                return Ok(userCache);
+        }
+        
         var user = userId != null 
             ? await _userRepository.GetByIdAsync(userId.Value)
             : await _userRepository.FindAsync(u => u.EmailAddress == emailAddress);
@@ -84,7 +100,22 @@ public class AdminController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found." });
 
-        return Ok(new UserResponseDto(user));
+        var response = UserResponseDto.FormDto(user);
+        if (_cacheService.IsConnected(getRequestsDbId))
+        {
+            await _cacheService.SetAsync<UserResponseDto?>(
+                user.EmailAddress, 
+                response, 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+            
+            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
+                response, 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+        }
+
+        return Ok(response);
     }
 
     [HttpGet("roles")]
@@ -99,6 +130,9 @@ public class AdminController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> UpdateUser([FromRoute] Guid userId, [FromBody] UpdateUserDto dto)
     {
+        var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
+        var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
+        
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             return NotFound(new { message = "User not found." });
@@ -126,6 +160,20 @@ public class AdminController : ControllerBase
         
         await _userRepository.UpdateAsync(user);
         
+        if (_cacheService.IsConnected(getRequestsDbId))
+        {
+            await _cacheService.SetAsync<UserResponseDto?>(
+                user.EmailAddress, 
+                UserResponseDto.FormDto(user), 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+            
+            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
+                UserResponseDto.FormDto(user), 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+        }
+
         return Ok(new { message = "User updated successfully." });
     }
     
