@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using Absolute.Cinema.IdentityService.Models;
 
 namespace Absolute.Cinema.IdentityService.DataObjects.AdminController;

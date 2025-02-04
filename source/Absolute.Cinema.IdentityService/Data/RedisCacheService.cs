@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using StackExchange.Redis;
 using System.Text.Json;
 using Absolute.Cinema.IdentityService.Interfaces;

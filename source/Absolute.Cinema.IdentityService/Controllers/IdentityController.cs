@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
