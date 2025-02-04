@@ -9,6 +9,12 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
+    <PackageReference Include="KafkaFlow" Version="3.0.10" />
+    <PackageReference Include="KafkaFlow.Extensions.Hosting" Version="3.0.10" />
+    <PackageReference Include="KafkaFlow.Microsoft.DependencyInjection" Version="3.0.10" />
+    <PackageReference Include="KafkaFlow.Serializer" Version="2.5.1" />
+    <PackageReference Include="KafkaFlow.Serializer.JsonCore" Version="3.0.10" />
+    <PackageReference Include="KafkaFlow.TypedHandler" Version="2.5.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.12" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="9.0.1" />
@@ -21,6 +27,10 @@
     <Content Include="..\..\.dockerignore">
       <Link>.dockerignore</Link>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Absolute.Cinema.IdentityService\Absolute.Cinema.IdentityService.csproj" />
   </ItemGroup>
 
 </Project>

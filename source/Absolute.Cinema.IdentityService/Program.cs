@@ -15,6 +15,9 @@ using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using KafkaFlow.Serializer;
+using KafkaFlow;
+using StackExchange.Redis;
 using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,7 +31,9 @@ builder.Services.AddScoped<IRepository<User>, EntityFrameworkRepository<User>>()
 builder.Services.AddScoped<IRepository<Role>, EntityFrameworkRepository<Role>>();
 
 // Configure Redis database
-builder.Services.AddSingleton<RedisCacheService>();
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
 // Configure Email sender
 builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
@@ -46,10 +51,29 @@ builder.Services.AddTransient<IValidator<UpdateEmailAddressDto>, UpdateEmailAddr
 builder.Services.AddTransient<IValidator<CreateUserDto>, CreateUserDtoValidator>();
 builder.Services.AddTransient<IValidator<UpdateUserDto>, UpdateUserDtoValidator>();
 
-//Configure JWT Authentication and Authorization
+// Configure JWT Authentication and Authorization
 var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
-var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!));
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
+
+// Configure kafka
+builder.Services.AddKafka(
+    kafka => kafka
+        .AddCluster(cluster =>
+        {
+            var topicName = builder.Configuration["KafkaSettings:TopicName"];
+            cluster
+                .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
+                .CreateTopicIfNotExists(topicName, 1, 1)
+                .AddProducer(
+                    builder.Configuration["KafkaSettings:ProducerName"],
+                    producer => producer
+                        .DefaultTopic(topicName)
+                        .AddMiddlewares(middleware => middleware.AddSerializer<JsonCoreSerializer>()
+                        )
+                );
+        })
+);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

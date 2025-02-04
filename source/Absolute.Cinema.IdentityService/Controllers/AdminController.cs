@@ -1,6 +1,8 @@
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Models.KafkaRequests;
+using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,13 +14,22 @@ public class AdminController : ControllerBase
 {
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Role> _roleRepository;
+    private readonly IProducerAccessor _producerAccessor;
+    private readonly IConfiguration _configuration;
+    private readonly ICacheService _cacheService;
 
     public AdminController(
         IRepository<User> userRepository,
-        IRepository<Role> roleRepository)
+        IRepository<Role> roleRepository,
+        IProducerAccessor producerAccessor,
+        IConfiguration configuration,
+        ICacheService cacheService)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
+        _producerAccessor = producerAccessor;
+        _configuration = configuration;
+        _cacheService = cacheService;
     }
 
     [HttpPost("users")]
@@ -32,12 +43,16 @@ public class AdminController : ControllerBase
         if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.EmailAddress))
             return BadRequest(new { message = "Such user already exist." });
         
-        await _userRepository.CreateAsync(new User
+        var user = new User
         {
             EmailAddress = dto.EmailAddress,
             RoleId = role.Id,
             HashPassword = dto.Password != null ? BCrypt.Net.BCrypt.HashPassword(dto.Password) : null
-        });
+        };
+        await _userRepository.CreateAsync(user);
+        
+        var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
+        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserRequest(user.Id, user.EmailAddress));
         
         return Ok(new { message = "User created successfully." });
     }
@@ -57,9 +72,22 @@ public class AdminController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> GetUser([FromQuery]Guid? userId, [FromQuery] string? emailAddress)
     {
+        var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
+        var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
+        
         if (userId == null && emailAddress == null)
             return BadRequest(new { message = "Either userId or emailAddress must be provided." });
+        
+        if (_cacheService.IsConnected(getRequestsDbId))
+        {
+            var userCache = userId != null 
+                ? await _cacheService.GetAsync<UserResponseDto?>(userId.ToString()!, getRequestsDbId)
+                : await _cacheService.GetAsync<UserResponseDto?>(emailAddress!, getRequestsDbId);
 
+            if (userCache != null)
+                return Ok(userCache);
+        }
+        
         var user = userId != null 
             ? await _userRepository.GetByIdAsync(userId.Value)
             : await _userRepository.FindAsync(u => u.EmailAddress == emailAddress);
@@ -67,7 +95,22 @@ public class AdminController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found." });
 
-        return Ok(new UserResponseDto(user));
+        var response = UserResponseDto.FormDto(user);
+        if (_cacheService.IsConnected(getRequestsDbId))
+        {
+            await _cacheService.SetAsync<UserResponseDto?>(
+                user.EmailAddress, 
+                response, 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+            
+            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
+                response, 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+        }
+
+        return Ok(response);
     }
 
     [HttpGet("roles")]
@@ -82,6 +125,9 @@ public class AdminController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> UpdateUser([FromRoute] Guid userId, [FromBody] UpdateUserDto dto)
     {
+        var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
+        var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
+        
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             return NotFound(new { message = "User not found." });
@@ -108,7 +154,28 @@ public class AdminController : ControllerBase
             user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         
         await _userRepository.UpdateAsync(user);
+
+        if (dto.NewEmailAddress == user.EmailAddress)
+        {
+            var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
+            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserRequest(user.Id, user.EmailAddress));
+        }
         
+        if (_cacheService.IsConnected(getRequestsDbId))
+        {
+            await _cacheService.SetAsync<UserResponseDto?>(
+                user.EmailAddress, 
+                UserResponseDto.FormDto(user), 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+            
+            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
+                UserResponseDto.FormDto(user), 
+                getRequestsTimeSpan, 
+                getRequestsDbId);
+        }
+        
+
         return Ok(new { message = "User updated successfully." });
     }
     
