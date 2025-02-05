@@ -7,12 +7,12 @@ namespace Absolute.Cinema.IdentityService.Repositories;
 
 public class EntityFrameworkRepository<T> : IRepository<T> where T : class
 {
-    public EntityFrameworkRepository (DatabaseContext context)
+    public EntityFrameworkRepository (ApplicationDbContext context)
     {
         _context = context;
     }
     
-    private readonly DatabaseContext _context;
+    private readonly ApplicationDbContext _context;
     
     public async Task<T?> FindAsync(Expression<Func<T, bool>> predicate)
     {

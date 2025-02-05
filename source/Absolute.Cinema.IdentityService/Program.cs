@@ -26,7 +26,7 @@ using Role = Absolute.Cinema.IdentityService.Models.Role;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Postgres database
-builder.Services.AddDbContext<DatabaseContext>(options =>
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
 // Configure Repository
