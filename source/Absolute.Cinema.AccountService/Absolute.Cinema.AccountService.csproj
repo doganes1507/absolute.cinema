@@ -33,8 +33,4 @@
     <ProjectReference Include="..\Absolute.Cinema.Shared\Absolute.Cinema.Shared.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Interfaces\" />
-  </ItemGroup>
-
 </Project>
