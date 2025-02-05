@@ -1,4 +1,4 @@
-namespace Absolute.Cinema.IdentityService.Interfaces;
+namespace Absolute.Cinema.Shared.Interfaces;
 
 public interface ICacheService
 {
@@ -8,5 +8,4 @@ public interface ICacheService
     public Task<T?> GetDeleteAsync<T>(string key, int dbIndex = 0);
     public Task<bool> ExistsAsync(string key, int dbIndex = 0);
     public bool IsConnected(int dbIndex = 0);
-
 }

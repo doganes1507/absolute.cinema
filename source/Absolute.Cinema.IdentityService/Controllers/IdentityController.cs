@@ -1,10 +1,10 @@
 using System.Security.Claims;
-using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
-using Absolute.Cinema.IdentityService.Models.KafkaRequests;
+using Absolute.Cinema.Shared.Interfaces;
+using Absolute.Cinema.Shared.KafkaEvents;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -113,7 +113,7 @@ public class IdentityController : ControllerBase
             await _userRepository.CreateAsync(user);
             
             var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserRequest(user.Id, user.EmailAddress));
+            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
             
             message = "User successfully registered";
         }
@@ -193,7 +193,7 @@ public class IdentityController : ControllerBase
         await _userRepository.UpdateAsync(user);
 
         var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserRequest(user.Id, user.EmailAddress));
+        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
         
         if (_cacheService.IsConnected(getRequestsDbId))
         {

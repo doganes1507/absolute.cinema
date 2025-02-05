@@ -1,9 +1,8 @@
-using System.Runtime.CompilerServices;
-using StackExchange.Redis;
 using System.Text.Json;
-using Absolute.Cinema.IdentityService.Interfaces;
+using Absolute.Cinema.Shared.Interfaces;
+using StackExchange.Redis;
 
-namespace Absolute.Cinema.IdentityService.Data;
+namespace Absolute.Cinema.Shared.Services;
 
 public class RedisCacheService(IConnectionMultiplexer redis) : ICacheService
 {

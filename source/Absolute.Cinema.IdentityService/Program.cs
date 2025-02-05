@@ -10,6 +10,9 @@ using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.IdentityService.Repositories;
 using Absolute.Cinema.IdentityService.Validators.AdminController;
 using Absolute.Cinema.IdentityService.Validators.IdentityController;
+using Absolute.Cinema.Shared.Interfaces;
+using Absolute.Cinema.Shared.KafkaEvents;
+using Absolute.Cinema.Shared.Services;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
@@ -23,8 +26,9 @@ using Role = Absolute.Cinema.IdentityService.Models.Role;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Postgres database
-builder.Services.AddDbContext<DatabaseContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+builder.Services.AddDbContext<ApplicationDbContext>(options => options
+    .UseNpgsql(builder.Configuration.GetConnectionString("Postgres"))
+    .UseLazyLoadingProxies());
 
 // Configure Repository
 builder.Services.AddScoped<IRepository<User>, EntityFrameworkRepository<User>>();
@@ -38,6 +42,22 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 // Configure Email sender
 builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddTransient<IMailService, MailService>();
+
+// Configure Kafka producer
+builder.Services.AddKafka(
+    kafka => kafka
+        .AddCluster(cluster => cluster
+            .WithBrokers([builder.Configuration["KafkaSettings:BrokerAddress"]])
+            .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"])
+            .AddProducer(
+                builder.Configuration["KafkaSettings:ProducerName"],
+                producer => producer
+                    .DefaultTopic(builder.Configuration["KafkaSettings:TopicName"])
+                    .AddMiddlewares(middleware => middleware
+                        .AddSingleTypeSerializer<SyncUserEvent, JsonCoreSerializer>()
+                    )
+            ))
+);
 
 // Configure Token provider
 builder.Services.AddTransient<ITokenProvider, TokenProvider>();
@@ -56,25 +76,6 @@ var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
 var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!));
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
 
-// Configure kafka
-builder.Services.AddKafka(
-    kafka => kafka
-        .AddCluster(cluster =>
-        {
-            var topicName = builder.Configuration["KafkaSettings:TopicName"];
-            cluster
-                .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
-                .CreateTopicIfNotExists(topicName, 1, 1)
-                .AddProducer(
-                    builder.Configuration["KafkaSettings:ProducerName"],
-                    producer => producer
-                        .DefaultTopic(topicName)
-                        .AddMiddlewares(middleware => middleware.AddSerializer<JsonCoreSerializer>()
-                        )
-                );
-        })
-);
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -82,12 +83,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = issuerSigningKey,
-            
+
             ValidateAudience = false,
-          
+
             ValidateIssuer = true,
             ValidIssuer = validIssuer,
-            
+
             ValidateLifetime = true
         };
     });

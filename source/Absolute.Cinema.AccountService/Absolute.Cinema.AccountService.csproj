@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Absolute.Cinema.IdentityService\Absolute.Cinema.IdentityService.csproj" />
+    <ProjectReference Include="..\Absolute.Cinema.Shared\Absolute.Cinema.Shared.csproj" />
   </ItemGroup>
 
 </Project>

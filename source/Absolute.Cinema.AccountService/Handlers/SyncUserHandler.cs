@@ -1,14 +1,14 @@
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.Models;
-using Absolute.Cinema.IdentityService.Interfaces;
-using Absolute.Cinema.IdentityService.Models.KafkaRequests;
+using Absolute.Cinema.Shared.Interfaces;
+using Absolute.Cinema.Shared.KafkaEvents;
 using KafkaFlow;
 
 namespace Absolute.Cinema.AccountService.Handlers;
 
-public class SyncUserHandler(ApplicationDbContext dbContext, ICacheService cacheService, IConfiguration configuration) : IMessageHandler<SyncUserRequest>
+public class SyncUserHandler(ApplicationDbContext dbContext, ICacheService cacheService, IConfiguration configuration) : IMessageHandler<SyncUserEvent>
 {
-    public async Task Handle(IMessageContext context, SyncUserRequest message)
+    public async Task Handle(IMessageContext context, SyncUserEvent message)
     {
         var user = await dbContext.Users.FindAsync(message.UserId);  
         
