@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
+using Absolute.Cinema.AccountService.Interfaces;
 using Absolute.Cinema.AccountService.Models;
-using Absolute.Cinema.IdentityService.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

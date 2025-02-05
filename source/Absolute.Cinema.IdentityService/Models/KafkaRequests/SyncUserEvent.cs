@@ -1,3 +1,3 @@
 namespace Absolute.Cinema.IdentityService.Models.KafkaRequests;
 
-public record SyncUserRequest(Guid UserId, string EmailAddress);
+public record SyncUserEvent(Guid UserId, string EmailAddress);

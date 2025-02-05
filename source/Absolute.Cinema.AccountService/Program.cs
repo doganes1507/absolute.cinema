@@ -2,8 +2,9 @@ using System.Text;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
 using Absolute.Cinema.AccountService.Handlers;
+using Absolute.Cinema.AccountService.Interfaces;
+using Absolute.Cinema.AccountService.Models;
 using Absolute.Cinema.AccountService.Validators;
-using Absolute.Cinema.IdentityService.Interfaces;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using KafkaFlow;
@@ -13,7 +14,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
-using RedisCacheService = Absolute.Cinema.IdentityService.Data.RedisCacheService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +25,28 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
+
+// Configure Kafka consumer
+builder.Services.AddKafkaFlowHostedService(
+    kafka => kafka
+        .AddCluster(cluster => cluster
+            .WithBrokers([builder.Configuration["KafkaSettings:BrokerAddress"]])
+            .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"], 1, 1)
+            .AddConsumer(consumer => consumer
+                .Topic(builder.Configuration["KafkaSettings:TopicName"])
+                .WithGroupId(builder.Configuration["KafkaSettings:GroupId"])
+                .WithBufferSize(100)
+                .WithWorkersCount(3)
+                .WithAutoOffsetReset(AutoOffsetReset.Earliest)
+                .AddMiddlewares(middlewares => middlewares
+                    .AddSingleTypeDeserializer<SyncUserEvent, JsonCoreDeserializer>()
+                    .AddTypedHandlers(handlers => handlers
+                        .AddHandler<SyncUserHandler>()
+                        .WithHandlerLifetime(InstanceLifetime.Scoped)
+                    )
+                )
+            )
+        ));
 
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();
@@ -83,36 +105,11 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Configure Kafka
-builder.Services.AddKafkaFlowHostedService(
-    kafka => kafka
-        .AddCluster(cluster =>
-                cluster
-                    .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
-                    .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"], 1, 1)
-                    .AddConsumer(consumer =>
-                        consumer
-                            .Topic(builder.Configuration["KafkaSettings:TopicName"])
-                            .WithGroupId(builder.Configuration["KafkaSettings:GroupId"])
-                            .WithBufferSize(100)
-                            .WithWorkersCount(3)
-                            .WithAutoOffsetReset(AutoOffsetReset.Earliest)
-                            .AddMiddlewares(middlewares => middlewares
-                                .AddDeserializer<JsonCoreDeserializer>()
-                                .AddTypedHandlers(handlers =>
-                                    handlers
-                                        .AddHandler<SyncUserHandler>()
-                                        .WithHandlerLifetime(InstanceLifetime.Scoped)
-                                )
-                            )
-                    )
-        ));
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var app = builder.Build(); 
+var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -121,7 +118,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection(); 
+app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -129,4 +126,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Absolute.Cinema.IdentityService.Interfaces;
+using Absolute.Cinema.AccountService.Interfaces;
 using StackExchange.Redis;
 
 namespace Absolute.Cinema.AccountService.Data;

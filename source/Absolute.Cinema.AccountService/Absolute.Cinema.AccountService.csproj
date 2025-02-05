@@ -29,8 +29,4 @@
     </Content>
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Absolute.Cinema.IdentityService\Absolute.Cinema.IdentityService.csproj" />
-  </ItemGroup>
-
 </Project>

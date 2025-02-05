@@ -52,7 +52,7 @@ public class AdminController : ControllerBase
         await _userRepository.CreateAsync(user);
         
         var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserRequest(user.Id, user.EmailAddress));
+        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
         
         return Ok(new { message = "User created successfully." });
     }
@@ -158,7 +158,7 @@ public class AdminController : ControllerBase
         if (dto.NewEmailAddress == user.EmailAddress)
         {
             var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserRequest(user.Id, user.EmailAddress));
+            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
         }
         
         if (_cacheService.IsConnected(getRequestsDbId))

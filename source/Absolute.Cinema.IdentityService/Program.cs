@@ -7,6 +7,7 @@ using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
 using Absolute.Cinema.IdentityService.Models;
+using Absolute.Cinema.IdentityService.Models.KafkaRequests;
 using Absolute.Cinema.IdentityService.Repositories;
 using Absolute.Cinema.IdentityService.Validators.AdminController;
 using Absolute.Cinema.IdentityService.Validators.IdentityController;
@@ -39,6 +40,22 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddTransient<IMailService, MailService>();
 
+// Configure Kafka producer
+builder.Services.AddKafka(
+    kafka => kafka
+        .AddCluster(cluster => cluster
+            .WithBrokers([builder.Configuration["KafkaSettings:BrokerAddress"]])
+            .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"])
+            .AddProducer(
+                builder.Configuration["KafkaSettings:ProducerName"],
+                producer => producer
+                    .DefaultTopic(builder.Configuration["KafkaSettings:TopicName"])
+                    .AddMiddlewares(middleware => middleware
+                        .AddSingleTypeSerializer<SyncUserEvent, JsonCoreSerializer>()
+                    )
+            ))
+);
+
 // Configure Token provider
 builder.Services.AddTransient<ITokenProvider, TokenProvider>();
 
@@ -56,25 +73,6 @@ var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
 var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!));
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
 
-// Configure kafka
-builder.Services.AddKafka(
-    kafka => kafka
-        .AddCluster(cluster =>
-        {
-            var topicName = builder.Configuration["KafkaSettings:TopicName"];
-            cluster
-                .WithBrokers(new[] { builder.Configuration["KafkaSettings:BrokerAddress"] })
-                .CreateTopicIfNotExists(topicName, 1, 1)
-                .AddProducer(
-                    builder.Configuration["KafkaSettings:ProducerName"],
-                    producer => producer
-                        .DefaultTopic(topicName)
-                        .AddMiddlewares(middleware => middleware.AddSerializer<JsonCoreSerializer>()
-                        )
-                );
-        })
-);
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -82,12 +80,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = issuerSigningKey,
-            
+
             ValidateAudience = false,
-          
+
             ValidateIssuer = true,
             ValidIssuer = validIssuer,
-            
+
             ValidateLifetime = true
         };
     });
