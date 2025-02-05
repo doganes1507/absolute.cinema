@@ -1,7 +1,8 @@
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
-using Absolute.Cinema.IdentityService.Models.KafkaRequests;
+using Absolute.Cinema.Shared.Interfaces;
+using Absolute.Cinema.Shared.KafkaEvents;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

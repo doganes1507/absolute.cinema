@@ -1,4 +1,4 @@
-namespace Absolute.Cinema.AccountService.Interfaces;
+namespace Absolute.Cinema.Shared.Interfaces;
 
 public interface ICacheService
 {

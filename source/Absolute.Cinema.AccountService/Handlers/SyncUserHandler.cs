@@ -1,6 +1,7 @@
 using Absolute.Cinema.AccountService.Data;
-using Absolute.Cinema.AccountService.Interfaces;
 using Absolute.Cinema.AccountService.Models;
+using Absolute.Cinema.Shared.Interfaces;
+using Absolute.Cinema.Shared.KafkaEvents;
 using KafkaFlow;
 
 namespace Absolute.Cinema.AccountService.Handlers;

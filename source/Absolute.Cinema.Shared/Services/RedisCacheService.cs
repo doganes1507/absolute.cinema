@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Absolute.Cinema.AccountService.Interfaces;
+using Absolute.Cinema.Shared.Interfaces;
 using StackExchange.Redis;
 
-namespace Absolute.Cinema.AccountService.Data;
+namespace Absolute.Cinema.Shared.Services;
 
 public class RedisCacheService(IConnectionMultiplexer redis) : ICacheService
 {
@@ -19,18 +19,18 @@ public class RedisCacheService(IConnectionMultiplexer redis) : ICacheService
         var json = JsonSerializer.Serialize(value);
         return await cache.StringSetAsync(key, json, expiry);
     }
-    
-    public async Task<T?> GetDeleteAsync<T>(string key, int dbIndex = 0)
-    {
-        var cache = redis.GetDatabase(dbIndex);
-        var value = await cache.StringGetDeleteAsync(key);
-        return value.IsNull ? default : JsonSerializer.Deserialize<T>(value!);
-    }
 
     public async Task<bool> DeleteAsync(string key, int dbIndex = 0)
     {
         var cache = redis.GetDatabase(dbIndex);
         return await cache.KeyDeleteAsync(key);
+    }
+
+    public async Task<T?> GetDeleteAsync<T>(string key, int dbIndex = 0)
+    {
+        var cache = redis.GetDatabase(dbIndex);
+        var value = await cache.StringGetDeleteAsync(key);
+        return value.IsNull ? default : JsonSerializer.Deserialize<T>(value!);
     }
 
     public async Task<bool> ExistsAsync(string key, int dbIndex = 0)
