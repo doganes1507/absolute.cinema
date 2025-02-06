@@ -54,7 +54,11 @@ public class AdminController : ControllerBase
         var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
         await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
         
-        return Ok(new { message = "User created successfully." });
+        return Ok(new
+        {
+            createdUserId = user.Id.ToString(),
+            message = "User created successfully."
+        });
     }
     
     [HttpPost("roles")]
@@ -64,10 +68,15 @@ public class AdminController : ControllerBase
         if (await _dbContext.Roles.AnyAsync(r => r.Name == dto.RoleName))
             return BadRequest(new { message = "Role with this name already exist." });
 
-        await _dbContext.Roles.AddAsync(new Role { Name = dto.RoleName });
+        var role = new Role { Name = dto.RoleName };
+        await _dbContext.Roles.AddAsync(role);
         await _dbContext.SaveChangesAsync();
 
-        return Ok(new { message = "Role created successfully." });
+        return Ok(new
+        {
+            createdRoleId = role.Id.ToString(),
+            message = "Role created successfully."
+        });
     }
     
     [HttpGet("users")]
@@ -178,7 +187,11 @@ public class AdminController : ControllerBase
         }
         
 
-        return Ok(new { message = "User updated successfully." });
+        return Ok(new
+        {
+            updatedUserId = user.Id.ToString(),
+            message = "User updated successfully."
+        });
     }
     
     [HttpDelete("users/{userId}")]
