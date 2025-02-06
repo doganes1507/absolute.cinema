@@ -131,6 +131,7 @@ public class IdentityController : ControllerBase
         {
             accessToken,
             refreshToken,
+            userId = user.Id.ToString(),
             message
         });
     }
@@ -159,6 +160,7 @@ public class IdentityController : ControllerBase
         {
             accessToken,
             refreshToken,
+            userId = user.Id.ToString(),
             message = "User successfully logged in"
         });
     }
@@ -208,7 +210,11 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
-        return Ok(new {message = "Email address updated"});
+        return Ok(new
+        {
+            userId = user.Id.ToString(),
+            message = "Email address updated"
+        });
     }
 
     [Authorize]
@@ -243,7 +249,11 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
-        return Ok("Password was successfully updated");
+        return Ok(new
+        {
+            userId = user.Id.ToString(),
+            message = "Password was successfully updated"
+        });
     }
 
     [HttpPost("RefreshToken")]
@@ -275,6 +285,7 @@ public class IdentityController : ControllerBase
         {
             newAccessToken,
             newRefreshToken,
+            userId = user.Id.ToString(),
             message = ""
         });
     }
