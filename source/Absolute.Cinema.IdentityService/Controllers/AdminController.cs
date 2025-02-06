@@ -52,8 +52,10 @@ public class AdminController : ControllerBase
         };
         await _userRepository.CreateAsync(user);
         
-        var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
+        var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+        await producer.ProduceAsync(
+            messageKey: null,
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
         
         return Ok(new { message = "User created successfully." });
     }
@@ -158,8 +160,10 @@ public class AdminController : ControllerBase
 
         if (dto.NewEmailAddress == user.EmailAddress)
         {
-            var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
+            var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+            await producer.ProduceAsync(
+                messageKey: null,
+                messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
         }
         
         if (_cacheService.IsConnected(getRequestsDbId))
@@ -170,7 +174,8 @@ public class AdminController : ControllerBase
                 getRequestsTimeSpan, 
                 getRequestsDbId);
             
-            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
+            await _cacheService.SetAsync<UserResponseDto?>(
+                user.Id.ToString(),
                 UserResponseDto.FormDto(user), 
                 getRequestsTimeSpan, 
                 getRequestsDbId);

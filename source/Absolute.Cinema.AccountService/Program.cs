@@ -31,14 +31,14 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddKafkaFlowHostedService(
     kafka => kafka
         .AddCluster(cluster => cluster
-            .WithBrokers([builder.Configuration["KafkaSettings:BrokerAddress"]])
-            .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"], 1, 1)
+            .WithBrokers([builder.Configuration["Kafka:BrokerAddress"]])
+            .CreateTopicIfNotExists(builder.Configuration["Kafka:Topic"])
             .AddConsumer(consumer => consumer
-                .Topic(builder.Configuration["KafkaSettings:TopicName"])
-                .WithGroupId(builder.Configuration["KafkaSettings:GroupId"])
+                .Topic(builder.Configuration["Kafka:Topic"])
+                .WithGroupId(builder.Configuration["Kafka:GroupId"])
                 .WithBufferSize(100)
-                .WithWorkersCount(3)
-                .WithAutoOffsetReset(AutoOffsetReset.Earliest)
+                //.WithWorkersCount(3)
+                //.WithAutoOffsetReset(AutoOffsetReset.Earliest)
                 .AddMiddlewares(middlewares => middlewares
                     .AddSingleTypeDeserializer<SyncUserEvent, JsonCoreDeserializer>()
                     .AddTypedHandlers(handlers => handlers
