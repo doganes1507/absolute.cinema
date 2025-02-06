@@ -6,8 +6,6 @@ using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Services;
-using Absolute.Cinema.IdentityService.Models;
-using Absolute.Cinema.IdentityService.Repositories;
 using Absolute.Cinema.IdentityService.Validators.AdminController;
 using Absolute.Cinema.IdentityService.Validators.IdentityController;
 using Absolute.Cinema.Shared.Interfaces;
@@ -21,7 +19,6 @@ using Microsoft.OpenApi.Models;
 using KafkaFlow.Serializer;
 using KafkaFlow;
 using StackExchange.Redis;
-using Role = Absolute.Cinema.IdentityService.Models.Role;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,10 +26,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ApplicationDbContext>(options => options
     .UseNpgsql(builder.Configuration.GetConnectionString("Postgres"))
     .UseLazyLoadingProxies());
-
-// Configure Repository
-builder.Services.AddScoped<IRepository<User>, EntityFrameworkRepository<User>>();
-builder.Services.AddScoped<IRepository<Role>, EntityFrameworkRepository<Role>>();
 
 // Configure Redis database
 builder.Services.AddSingleton<IConnectionMultiplexer>(
