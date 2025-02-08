@@ -112,8 +112,10 @@ public class IdentityController : ControllerBase
             user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
             await _userRepository.CreateAsync(user);
             
-            var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
+            var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+            await producer.ProduceAsync(
+                messageKey: null,
+                messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
             
             message = "User successfully registered";
         }
@@ -192,8 +194,10 @@ public class IdentityController : ControllerBase
         user.EmailAddress = dto.NewEmailAddress;
         await _userRepository.UpdateAsync(user);
 
-        var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
+        var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("Kafka:ProducerName"));
+        await producer.ProduceAsync(
+            messageKey: null,
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
         
         if (_cacheService.IsConnected(getRequestsDbId))
         {
