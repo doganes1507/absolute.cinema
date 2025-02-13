@@ -1,9 +1,11 @@
 networks:
   kafka-network:
     driver: bridge
-  account:
+  gateway-network:
     driver: bridge
-  identity:
+  account-service-network:
+    driver: bridge
+  identity-service-network:
     driver: bridge
 
 services:
@@ -80,35 +82,100 @@ services:
 #    command: [ "tail", "-f", "/dev/null" ]
 #    network_mode: "host"
     
-  absolute.cinema.identity-service:
-    image: absolute.cinema.identity-service
+  absolute.cinema.gateway:
+    image: absolute.cinema.gateway
     build:
       context: .
-      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+      dockerfile: source/Absolute.Cinema.Gateway/Dockerfile
     ports:
       - "10000:8080"
       - "10001:8081"
     networks:
+      - gateway-network
+    
+  absolute.cinema.identity-service1:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+#    ports:
+#      - "10100:8080"
+#      - "10101:8081"
+    networks:
+      - gateway-network
       - kafka-network
-      - identity
+      - identity-service-network
   
-  absolute.cinema.account-service:
+  absolute.cinema.identity-service2:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+    #    ports:
+    #      - "10100:8080"
+    #      - "10101:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - identity-service-network
+  
+  absolute.cinema.identity-service3:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+    #    ports:
+    #      - "10100:8080"
+    #      - "10101:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - identity-service-network
+  
+  absolute.cinema.account-service1:
     image: absolute.cinema.account-service
     build:
       context: .
       dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
-    ports:
-      - "10100:8080"
-      - "10101:8081"
+#    ports:
+#      - "10200:8080"
+#      - "10201:8081"
     networks:
+      - gateway-network
       - kafka-network
-      - account
+      - account-service-network
+  
+  absolute.cinema.account-service2:
+    image: absolute.cinema.account-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
+    #    ports:
+    #      - "10200:8080"
+    #      - "10201:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - account-service-network
+  
+  absolute.cinema.account-service3:
+    image: absolute.cinema.account-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
+    #    ports:
+    #      - "10200:8080"
+    #      - "10201:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - account-service-network
 
   account-service.postgres:
     image: postgres:latest
     networks:
       - kafka-network
-      - account
+      - account-service-network
     environment:
       - POSTGRES_DB=account_service_db
       - POSTGRES_USER=account-service
@@ -119,7 +186,7 @@ services:
   identity-service.postgres:
     image: postgres:latest
     networks:
-      - identity
+      - identity-service-network
     environment:
       - POSTGRES_DB=identity_service_db
       - POSTGRES_USER=identity-service
@@ -130,12 +197,12 @@ services:
   identity-service.redis:
     image: redis:latest
     networks:
-      - identity
+      - identity-service-network
   
   account-service.redis:
     image: redis:latest
     networks:
-      - account
+      - account-service-network
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
