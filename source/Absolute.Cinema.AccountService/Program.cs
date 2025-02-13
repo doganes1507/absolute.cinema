@@ -22,8 +22,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure Postgres database
 builder.Services.AddDbContext<ApplicationDbContext>(options => options
-    .UseNpgsql(builder.Configuration.GetConnectionString("Postgres"))
-    .UseLazyLoadingProxies());
+    .UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
 // Configure Redis database
 builder.Services.AddSingleton<IConnectionMultiplexer>(
@@ -127,8 +126,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
