@@ -182,7 +182,7 @@ public class IdentityController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found" });
 
-        if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
+        if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
             return BadRequest(new {message = "New email address is already in use"});
 
         var verified = await _cacheService.GetAsync<bool>(
