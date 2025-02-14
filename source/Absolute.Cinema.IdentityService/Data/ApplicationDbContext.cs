@@ -3,21 +3,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Absolute.Cinema.IdentityService.Data;
 
-public class DatabaseContext : DbContext
+public class ApplicationDbContext : DbContext
 {
     public DbSet<User> Users { get; set; }
     public DbSet<Role> Roles { get; set; }
     
-    public DatabaseContext(DbContextOptions<DatabaseContext> options) : base(options)
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
         Database.EnsureCreated();
-    }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder
-            .UseLazyLoadingProxies();
-        base.OnConfiguring(optionsBuilder);
     }
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)

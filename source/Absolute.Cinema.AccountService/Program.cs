@@ -1,72 +1,63 @@
 using System.Text;
-using Absolute.Cinema.IdentityService.Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Absolute.Cinema.IdentityService.Configuration;
-using Absolute.Cinema.IdentityService.DataObjects.AdminController;
-using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
-using Absolute.Cinema.IdentityService.Interfaces;
-using Absolute.Cinema.IdentityService.Services;
-using Absolute.Cinema.IdentityService.Validators.AdminController;
-using Absolute.Cinema.IdentityService.Validators.IdentityController;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Absolute.Cinema.AccountService.Data;
+using Absolute.Cinema.AccountService.DataObjects;
+using Absolute.Cinema.AccountService.Handlers;
+using Absolute.Cinema.AccountService.Validators;
 using Absolute.Cinema.Shared.Interfaces;
 using Absolute.Cinema.Shared.KafkaEvents;
 using Absolute.Cinema.Shared.Services;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using KafkaFlow;
+using KafkaFlow.Serializer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using KafkaFlow.Serializer;
-using KafkaFlow;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Postgres database
 builder.Services.AddDbContext<ApplicationDbContext>(options => options
-    .UseNpgsql(builder.Configuration.GetConnectionString("Postgres"))
-    .UseLazyLoadingProxies());
+    .UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
 // Configure Redis database
 builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
-// Configure Email sender
-builder.Services.Configure<MailConfiguration>(builder.Configuration.GetSection("MailSettings"));
-builder.Services.AddTransient<IMailService, MailService>();
-
-// Configure Kafka producer
-builder.Services.AddKafka(
+// Configure Kafka consumer
+builder.Services.AddKafkaFlowHostedService(
     kafka => kafka
         .AddCluster(cluster => cluster
             .WithBrokers([builder.Configuration["Kafka:BrokerAddress"]])
             .CreateTopicIfNotExists(builder.Configuration["Kafka:Topic"])
-            //.AddProducer<>
-            .AddProducer(builder.Configuration["Kafka:ProducerName"], producer => producer
-                .DefaultTopic(builder.Configuration["Kafka:Topic"])
-                //.WithAcks(Acks.Leader)
-                .AddMiddlewares(middleware => middleware
-                    .AddSingleTypeSerializer<SyncUserEvent, JsonCoreSerializer>()
+            .AddConsumer(consumer => consumer
+                .Topic(builder.Configuration["Kafka:Topic"])
+                .WithGroupId(builder.Configuration["Kafka:GroupId"])
+                .WithBufferSize(100)
+                //.WithWorkersCount(3)
+                //.WithAutoOffsetReset(AutoOffsetReset.Earliest)
+                .AddMiddlewares(middlewares => middlewares
+                    .AddSingleTypeDeserializer<SyncUserEvent, JsonCoreDeserializer>()
+                    .AddTypedHandlers(handlers => handlers
+                        .AddHandler<SyncUserHandler>()
+                        .WithHandlerLifetime(InstanceLifetime.Scoped)
+                    )
                 )
-            ))
-);
-
-// Configure Token provider
-builder.Services.AddTransient<ITokenProvider, TokenProvider>();
+            )
+        ));
 
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddTransient<IValidator<SendEmailCodeDto>, SendEmailCodeDtoValidator>();
-builder.Services.AddTransient<IValidator<UpdatePasswordDto>, UpdatePasswordDtoValidator>();
-builder.Services.AddTransient<IValidator<UpdateEmailAddressDto>, UpdateEmailAddressDtoValidator>();
-
-builder.Services.AddTransient<IValidator<CreateUserDto>, CreateUserDtoValidator>();
-builder.Services.AddTransient<IValidator<UpdateUserDto>, UpdateUserDtoValidator>();
+builder.Services.AddTransient<IValidator<UpdatePersonalInfoDto>, UpdatePersonalInfoDtoValidator>();
 
 // Configure JWT Authentication and Authorization
 var secretKey = builder.Configuration["TokenSettings:AccessToken:SecretKey"];
-var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!));
+var issuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 var validIssuer = builder.Configuration["TokenSettings:Common:Issuer"];
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -117,7 +108,13 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
