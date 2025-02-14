@@ -71,7 +71,7 @@ public class IdentityController : ControllerBase
             );
         
         if (codeFromCache != dto.Code)
-            return BadRequest(new {message = "Code was not confirmed"});
+            return BadRequest(new {message = "Invalid code"});
 
         await _cacheService.SetAsync(
             dto.EmailAddress,
@@ -85,7 +85,7 @@ public class IdentityController : ControllerBase
             _configuration.GetValue<int>("Redis:ConfirmationCodesDatabaseId")
             );
 
-        return Ok(new {message = "Code was confirmed"});
+        return Ok(new {message = "Code confirmed"});
     }
 
     [HttpPost("AuthenticateWithCode")]
@@ -95,7 +95,7 @@ public class IdentityController : ControllerBase
             dto.EmailAddress,
             _configuration.GetValue<int>("Redis:EmailVerificationDatabaseId"));
         if (confirmed != true)
-            return BadRequest(new {message = "Email wasn't verified"});
+            return BadRequest(new {message = "Email address is not verified"});
 
         var message = "User successfully logged in";
         var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == dto.EmailAddress);
@@ -111,8 +111,10 @@ public class IdentityController : ControllerBase
             await _dbContext.Users.AddAsync(user);
             await _dbContext.SaveChangesAsync();
             
-            var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-            await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
+            var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+            await producer.ProduceAsync(
+                messageKey: null,
+                messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
             
             message = "User successfully registered";
         }
@@ -141,7 +143,7 @@ public class IdentityController : ControllerBase
     {        
         var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == dto.EmailAddress);
         if (user == null)
-            return BadRequest(new { message = "User doesn’t exists" });
+            return Unauthorized(new { message = "Invalid credentials" });
         
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.HashPassword))
             return Unauthorized(new { message = "Invalid credentials"});
@@ -180,21 +182,23 @@ public class IdentityController : ControllerBase
         if (user == null)
             return NotFound(new { message = "User not found" });
 
-        if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
-            return BadRequest(new {message = "Email is already in use"});
+        if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
+            return BadRequest(new {message = "New email address is already in use"});
 
         var verified = await _cacheService.GetAsync<bool>(
             dto.NewEmailAddress,
             _configuration.GetValue<int>("Redis:EmailVerificationDatabaseId")
         );
         if (verified != true)
-            return BadRequest(new {message = "New Email address was not verified"});
+            return BadRequest(new {message = "New email address is not verified"});
         
         user.EmailAddress = dto.NewEmailAddress;
         await _dbContext.SaveChangesAsync();
 
-        var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("KafkaSettings:ProducerName"));
-        await producer.ProduceAsync(Guid.NewGuid().ToString(), new SyncUserEvent(user.Id, user.EmailAddress));
+        var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("Kafka:ProducerName"));
+        await producer.ProduceAsync(
+            messageKey: null,
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
         
         if (_cacheService.IsConnected(getRequestsDbId))
         {
@@ -210,9 +214,20 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
+        var accessToken = _tokenProvider.GetAccessToken(user);
+        var refreshToken = _tokenProvider.GetRefreshToken();
+        
+        await _cacheService.SetAsync(
+            user.Id.ToString(),
+            refreshToken,
+            TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")),
+            _configuration.GetValue<int>("Redis:RefreshTokensDatabaseId")
+        );
+        
         return Ok(new
         {
-            userId = user.Id.ToString(),
+            accessToken,
+            refreshToken,
             message = "Email address updated"
         });
     }
@@ -252,7 +267,7 @@ public class IdentityController : ControllerBase
         return Ok(new
         {
             userId = user.Id.ToString(),
-            message = "Password was successfully updated"
+            message = "Password successfully updated"
         });
     }
 
@@ -285,8 +300,7 @@ public class IdentityController : ControllerBase
         {
             newAccessToken,
             newRefreshToken,
-            userId = user.Id.ToString(),
-            message = ""
+            message = "Token successfully refreshed"
         });
     }
 }

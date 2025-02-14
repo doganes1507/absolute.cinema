@@ -1,5 +1,6 @@
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.Models;
+using Absolute.Cinema.AccountService.Models.Enumerations;
 using Absolute.Cinema.Shared.Interfaces;
 using Absolute.Cinema.Shared.KafkaEvents;
 using KafkaFlow;
@@ -18,6 +19,7 @@ public class SyncUserHandler(ApplicationDbContext dbContext, ICacheService cache
             {
                 Id = message.UserId,
                 EmailAddress = message.EmailAddress,
+                Gender = Gender.Unspecified,
                 RegistrationDateTime = DateTime.UtcNow,
             };
             

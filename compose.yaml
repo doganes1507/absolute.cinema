@@ -1,114 +1,181 @@
 networks:
   kafka-network:
     driver: bridge
-  account:
+  gateway-network:
     driver: bridge
-  identity:
+  account-service-network:
+    driver: bridge
+  identity-service-network:
     driver: bridge
 
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    networks:
-      - kafka-network
-    hostname: zookeeper
-    container_name: zookeeper
-    ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-      
-  broker:
-    image: confluentinc/cp-server:latest
-    networks:
-      - kafka-network
-    hostname: broker
-    container_name: broker
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "9101:9101"
-      - "29092:29092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost
-      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:29092
-      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
-      CONFLUENT_METRICS_ENABLE: 'true'
-      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
-    healthcheck:
-      test: [ "CMD", "kafka-topics", "--bootstrap-server", "broker:9092", "--list" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#  zookeeper:
+#    image: confluentinc/cp-zookeeper:latest
+#    networks:
+#      - kafka-network
+#    hostname: zookeeper
+#    container_name: zookeeper
+#    ports:
+#      - "2181:2181"
+#    environment:
+#      ZOOKEEPER_CLIENT_PORT: 2181
+#      ZOOKEEPER_TICK_TIME: 2000
+#      
+#  broker:
+#    image: confluentinc/cp-server:latest
+#    networks:
+#      - kafka-network
+#    hostname: broker
+#    container_name: broker
+#    depends_on:
+#      - zookeeper
+#    ports:
+#      - "9092:9092"
+#      - "9101:9101"
+#      - "29092:29092"
+#    environment:
+#      KAFKA_BROKER_ID: 1
+#      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+#      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+#      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+#      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+#      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+#      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+#      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+#      KAFKA_JMX_PORT: 9101
+#      KAFKA_JMX_HOSTNAME: localhost
+#      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+#      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:29092
+#      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+#      CONFLUENT_METRICS_ENABLE: 'true'
+#      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+#    healthcheck:
+#      test: [ "CMD", "kafka-topics", "--bootstrap-server", "broker:9092", "--list" ]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#    
+#
+#  schema-registry:
+#    image: confluentinc/cp-schema-registry:latest
+#    networks:
+#      - kafka-network
+#    hostname: schema-registry
+#    container_name: schema-registry
+#    depends_on:
+#      broker:
+#        condition: service_healthy
+#    ports:
+#      - "8081:8081"
+#    environment:
+#      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+#      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
+#      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+#
+#  kafka-tools:
+#    image: confluentinc/cp-kafka:latest
+#    hostname: kafka
+#    container_name: kafka
+#    command: [ "tail", "-f", "/dev/null" ]
+#    network_mode: "host"
     
-
-  schema-registry:
-    image: confluentinc/cp-schema-registry:latest
-    networks:
-      - kafka-network
-    hostname: schema-registry
-    container_name: schema-registry
-    depends_on:
-      broker:
-        condition: service_healthy
-    ports:
-      - "8081:8081"
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-
-  kafka-tools:
-    image: confluentinc/cp-kafka:latest
-    hostname: kafka
-    container_name: kafka
-    command: [ "tail", "-f", "/dev/null" ]
-    network_mode: "host"
-    
-  absolute.cinema.identity-service:
-    image: absolute.cinema.identity-service
+  absolute.cinema.gateway:
+    image: absolute.cinema.gateway
     build:
       context: .
-      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+      dockerfile: source/Absolute.Cinema.Gateway/Dockerfile
     ports:
       - "10000:8080"
       - "10001:8081"
     networks:
+      - gateway-network
+    
+  absolute.cinema.identity-service1:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+#    ports:
+#      - "10100:8080"
+#      - "10101:8081"
+    networks:
+      - gateway-network
       - kafka-network
-      - identity
+      - identity-service-network
   
-  absolute.cinema.account-service:
+  absolute.cinema.identity-service2:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+    #    ports:
+    #      - "10100:8080"
+    #      - "10101:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - identity-service-network
+  
+  absolute.cinema.identity-service3:
+    image: absolute.cinema.identity-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.IdentityService/Dockerfile
+    #    ports:
+    #      - "10100:8080"
+    #      - "10101:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - identity-service-network
+  
+  absolute.cinema.account-service1:
     image: absolute.cinema.account-service
     build:
       context: .
       dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
-    ports:
-      - "10100:8080"
-      - "10101:8081"
+#    ports:
+#      - "10200:8080"
+#      - "10201:8081"
     networks:
+      - gateway-network
       - kafka-network
-      - account
+      - account-service-network
+  
+  absolute.cinema.account-service2:
+    image: absolute.cinema.account-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
+    #    ports:
+    #      - "10200:8080"
+    #      - "10201:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - account-service-network
+  
+  absolute.cinema.account-service3:
+    image: absolute.cinema.account-service
+    build:
+      context: .
+      dockerfile: source/Absolute.Cinema.AccountService/Dockerfile
+    #    ports:
+    #      - "10200:8080"
+    #      - "10201:8081"
+    networks:
+      - gateway-network
+      - kafka-network
+      - account-service-network
 
   account-service.postgres:
     image: postgres:latest
     networks:
       - kafka-network
-      - account
+      - account-service-network
     environment:
       - POSTGRES_DB=account_service_db
       - POSTGRES_USER=account-service
@@ -119,7 +186,7 @@ services:
   identity-service.postgres:
     image: postgres:latest
     networks:
-      - identity
+      - identity-service-network
     environment:
       - POSTGRES_DB=identity_service_db
       - POSTGRES_USER=identity-service
@@ -130,9 +197,31 @@ services:
   identity-service.redis:
     image: redis:latest
     networks:
-      - identity
+      - identity-service-network
   
   account-service.redis:
     image: redis:latest
     networks:
-      - account
+      - account-service-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - kafka-network
+  
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - kafka-network

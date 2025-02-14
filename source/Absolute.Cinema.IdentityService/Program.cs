@@ -40,15 +40,15 @@ builder.Services.AddTransient<IMailService, MailService>();
 builder.Services.AddKafka(
     kafka => kafka
         .AddCluster(cluster => cluster
-            .WithBrokers([builder.Configuration["KafkaSettings:BrokerAddress"]])
-            .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"])
-            .AddProducer(
-                builder.Configuration["KafkaSettings:ProducerName"],
-                producer => producer
-                    .DefaultTopic(builder.Configuration["KafkaSettings:TopicName"])
-                    .AddMiddlewares(middleware => middleware
-                        .AddSingleTypeSerializer<SyncUserEvent, JsonCoreSerializer>()
-                    )
+            .WithBrokers([builder.Configuration["Kafka:BrokerAddress"]])
+            .CreateTopicIfNotExists(builder.Configuration["Kafka:Topic"])
+            //.AddProducer<>
+            .AddProducer(builder.Configuration["Kafka:ProducerName"], producer => producer
+                .DefaultTopic(builder.Configuration["Kafka:Topic"])
+                //.WithAcks(Acks.Leader)
+                .AddMiddlewares(middleware => middleware
+                    .AddSingleTypeSerializer<SyncUserEvent, JsonCoreSerializer>()
+                )
             ))
 );
 
@@ -129,8 +129,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();

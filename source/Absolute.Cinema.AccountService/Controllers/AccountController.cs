@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
 using Absolute.Cinema.AccountService.Models;
+using Absolute.Cinema.AccountService.Models.Enumerations;
 using Absolute.Cinema.Shared.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -67,8 +68,8 @@ public class AccountController : ControllerBase
             return NotFound("User not found.");
         
         if (dto.FirstName != null) user.FirstName = dto.FirstName;
-        if (dto.DateOfBirth.HasValue) user.DateOfBirth = dto.DateOfBirth;
-        if (dto.Gender.HasValue) user.Gender = dto.Gender.Value;
+        if (dto.DateOfBirth.HasValue) user.DateOfBirth = dto.DateOfBirth.Value;
+        if (dto.Gender != null) user.Gender = dto.Gender.Value;
         
         await _dbContext.SaveChangesAsync();
 

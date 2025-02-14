@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
 using Absolute.Cinema.AccountService.Handlers;
@@ -19,8 +21,8 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Postgres database
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+builder.Services.AddDbContext<ApplicationDbContext>(options => options
+    .UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
 // Configure Redis database
 builder.Services.AddSingleton<IConnectionMultiplexer>(
@@ -31,14 +33,14 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddKafkaFlowHostedService(
     kafka => kafka
         .AddCluster(cluster => cluster
-            .WithBrokers([builder.Configuration["KafkaSettings:BrokerAddress"]])
-            .CreateTopicIfNotExists(builder.Configuration["KafkaSettings:TopicName"], 1, 1)
+            .WithBrokers([builder.Configuration["Kafka:BrokerAddress"]])
+            .CreateTopicIfNotExists(builder.Configuration["Kafka:Topic"])
             .AddConsumer(consumer => consumer
-                .Topic(builder.Configuration["KafkaSettings:TopicName"])
-                .WithGroupId(builder.Configuration["KafkaSettings:GroupId"])
+                .Topic(builder.Configuration["Kafka:Topic"])
+                .WithGroupId(builder.Configuration["Kafka:GroupId"])
                 .WithBufferSize(100)
-                .WithWorkersCount(3)
-                .WithAutoOffsetReset(AutoOffsetReset.Earliest)
+                //.WithWorkersCount(3)
+                //.WithAutoOffsetReset(AutoOffsetReset.Earliest)
                 .AddMiddlewares(middlewares => middlewares
                     .AddSingleTypeDeserializer<SyncUserEvent, JsonCoreDeserializer>()
                     .AddTypedHandlers(handlers => handlers
@@ -106,7 +108,13 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -118,8 +126,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
