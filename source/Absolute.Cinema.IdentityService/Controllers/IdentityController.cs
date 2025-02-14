@@ -73,7 +73,7 @@ public class IdentityController : ControllerBase
             );
         
         if (codeFromCache != dto.Code)
-            return BadRequest(new {message = "Code was not confirmed"});
+            return BadRequest(new {message = "Invalid code"});
 
         await _cacheService.SetAsync(
             dto.EmailAddress,
@@ -87,7 +87,7 @@ public class IdentityController : ControllerBase
             _configuration.GetValue<int>("Redis:ConfirmationCodesDatabaseId")
             );
 
-        return Ok(new {message = "Code was confirmed"});
+        return Ok(new {message = "Code confirmed"});
     }
 
     [HttpPost("AuthenticateWithCode")]
@@ -97,7 +97,7 @@ public class IdentityController : ControllerBase
             dto.EmailAddress,
             _configuration.GetValue<int>("Redis:EmailVerificationDatabaseId"));
         if (confirmed != true)
-            return BadRequest(new {message = "Email wasn't verified"});
+            return BadRequest(new {message = "Email address is not verified"});
 
         var message = "User successfully logged in";
         var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
@@ -143,7 +143,7 @@ public class IdentityController : ControllerBase
     {        
         var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
         if (user == null)
-            return BadRequest(new { message = "User doesn’t exists" });
+            return Unauthorized(new { message = "Invalid credentials" });
         
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.HashPassword))
             return Unauthorized(new { message = "Invalid credentials"});
@@ -182,14 +182,14 @@ public class IdentityController : ControllerBase
             return NotFound(new { message = "User not found" });
 
         if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
-            return BadRequest(new {message = "Email is already in use"});
+            return BadRequest(new {message = "New email address is already in use"});
 
         var verified = await _cacheService.GetAsync<bool>(
             dto.NewEmailAddress,
             _configuration.GetValue<int>("Redis:EmailVerificationDatabaseId")
         );
         if (verified != true)
-            return BadRequest(new {message = "New Email address was not verified"});
+            return BadRequest(new {message = "New email address is not verified"});
         
         user.EmailAddress = dto.NewEmailAddress;
         await _userRepository.UpdateAsync(user);
@@ -213,6 +213,7 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
+
         var accessToken = _tokenProvider.GetAccessToken(user);
         var refreshToken = _tokenProvider.GetRefreshToken();
         
@@ -263,7 +264,7 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
-        return Ok("Password was successfully updated");
+        return Ok("Password successfully updated");
     }
 
     [HttpPost("RefreshToken")]
@@ -295,7 +296,7 @@ public class IdentityController : ControllerBase
         {
             newAccessToken,
             newRefreshToken,
-            message = ""
+            message = "Token successfully refreshed"
         });
     }
 }

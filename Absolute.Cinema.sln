@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Absolute.Cinema.AccountServ
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Absolute.Cinema.Shared", "source\Absolute.Cinema.Shared\Absolute.Cinema.Shared.csproj", "{B0B956F8-934B-42ED-B640-7F879D2AFFCB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Absolute.Cinema.Gateway", "source\Absolute.Cinema.Gateway\Absolute.Cinema.Gateway.csproj", "{EB4598B2-13A8-47D4-9190-CA94477D4017}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,6 +34,10 @@ Global
 		{B0B956F8-934B-42ED-B640-7F879D2AFFCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B0B956F8-934B-42ED-B640-7F879D2AFFCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B0B956F8-934B-42ED-B640-7F879D2AFFCB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB4598B2-13A8-47D4-9190-CA94477D4017}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB4598B2-13A8-47D4-9190-CA94477D4017}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB4598B2-13A8-47D4-9190-CA94477D4017}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB4598B2-13A8-47D4-9190-CA94477D4017}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
