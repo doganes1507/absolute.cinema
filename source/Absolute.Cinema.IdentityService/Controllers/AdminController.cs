@@ -1,11 +1,12 @@
+using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
-using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.Shared.Interfaces;
 using Absolute.Cinema.Shared.KafkaEvents;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
@@ -13,35 +14,32 @@ namespace Absolute.Cinema.IdentityService.Controllers;
 [Route("identity-service/admin")]
 public class AdminController : ControllerBase
 {
-    private readonly IRepository<User> _userRepository;
-    private readonly IRepository<Role> _roleRepository;
     private readonly IProducerAccessor _producerAccessor;
     private readonly IConfiguration _configuration;
     private readonly ICacheService _cacheService;
+    private readonly ApplicationDbContext _dbContext;
 
     public AdminController(
-        IRepository<User> userRepository,
-        IRepository<Role> roleRepository,
         IProducerAccessor producerAccessor,
         IConfiguration configuration,
-        ICacheService cacheService)
+        ICacheService cacheService,
+        ApplicationDbContext dbContext)
     {
-        _userRepository = userRepository;
-        _roleRepository = roleRepository;
         _producerAccessor = producerAccessor;
         _configuration = configuration;
         _cacheService = cacheService;
+        _dbContext = dbContext;
     }
 
     [HttpPost("users")]
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
     {
-        var role = await _roleRepository.FindAsync(r => r.Name == dto.Role);
+        var role = await _dbContext.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name == dto.Role);
         if (role == null)
             return BadRequest(new { message = "Such role does not exist." });
         
-        if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.EmailAddress))
+        if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == dto.EmailAddress))
             return BadRequest(new { message = "Such user already exist." });
         
         var user = new User
@@ -50,25 +48,37 @@ public class AdminController : ControllerBase
             RoleId = role.Id,
             HashPassword = dto.Password != null ? BCrypt.Net.BCrypt.HashPassword(dto.Password) : null
         };
-        await _userRepository.CreateAsync(user);
+        await _dbContext.Users.AddAsync(user);
+        await _dbContext.SaveChangesAsync();
         
         var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
         await producer.ProduceAsync(
             messageKey: null,
             messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
         
-        return Ok(new { message = "User created successfully." });
+        return Ok(new
+        {
+            createdUserId = user.Id.ToString(),
+            message = "User created successfully."
+        });
     }
     
     [HttpPost("roles")]
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> CreateRole([FromBody] CreateRoleDto dto)
     {
-        if (await _roleRepository.AnyAsync(r => r.Name == dto.RoleName))
+        if (await _dbContext.Roles.AnyAsync(r => r.Name == dto.RoleName))
             return BadRequest(new { message = "Role with this name already exist." });
-        
-        await _roleRepository.CreateAsync(new Role { Name = dto.RoleName });
-        return Ok(new { message = "Role created successfully." });
+
+        var role = new Role { Name = dto.RoleName };
+        await _dbContext.Roles.AddAsync(role);
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new
+        {
+            createdRoleId = role.Id.ToString(),
+            message = "Role created successfully."
+        });
     }
     
     [HttpGet("users")]
@@ -92,8 +102,8 @@ public class AdminController : ControllerBase
         }
         
         var user = userId != null 
-            ? await _userRepository.GetByIdAsync(userId.Value)
-            : await _userRepository.FindAsync(u => u.EmailAddress == emailAddress);
+            ? await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value)
+            : await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == emailAddress);
 
         if (user == null)
             return NotFound(new { message = "User not found." });
@@ -120,7 +130,7 @@ public class AdminController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> GetAllRoles()
     {
-        var roles = await _roleRepository.GetAllAsync();
+        var roles = await _dbContext.Roles.AsNoTracking().ToListAsync();
         return Ok(roles.Select(r => new RoleResponseDto(r)));
     }
 
@@ -131,13 +141,13 @@ public class AdminController : ControllerBase
         var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
         var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
         
-        var user = await _userRepository.GetByIdAsync(userId);
+        var user = await _dbContext.Users.FindAsync(userId);
         if (user == null)
             return NotFound(new { message = "User not found." });
 
         if (dto.NewRole != null)
         {
-            var role = await _roleRepository.FindAsync(r => r.Name == dto.NewRole);
+            var role = await _dbContext.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name == dto.NewRole);
             
             if (role == null)
                 return BadRequest(new { message = "Such role does not exist." });
@@ -147,7 +157,7 @@ public class AdminController : ControllerBase
 
         if (dto.NewEmailAddress != null)
         {
-            if (await _userRepository.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
+            if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
                 return BadRequest(new { message = "This email already in use." });
             
             user.EmailAddress = dto.NewEmailAddress;
@@ -156,7 +166,7 @@ public class AdminController : ControllerBase
         if (dto.NewPassword != null)
             user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         
-        await _userRepository.UpdateAsync(user);
+        await _dbContext.SaveChangesAsync();
 
         if (dto.NewEmailAddress == user.EmailAddress)
         {
@@ -182,19 +192,24 @@ public class AdminController : ControllerBase
         }
         
 
-        return Ok(new { message = "User updated successfully." });
+        return Ok(new
+        {
+            updatedUserId = user.Id.ToString(),
+            message = "User updated successfully."
+        });
     }
     
     [HttpDelete("users/{userId}")]
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> DeleteUser([FromRoute] Guid userId)
     {
-        var user = await _userRepository.GetByIdAsync(userId);
+        var user = await _dbContext.Users.FindAsync(userId);
         
         if (user == null)
             return NotFound(new { message = "User not found." });
 
-        await _userRepository.RemoveAsync(user);
+        _dbContext.Users.Remove(user);
+        await _dbContext.SaveChangesAsync();
         
         return Ok(new { message = "User deleted successfully." });
     }
@@ -203,12 +218,13 @@ public class AdminController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<IActionResult> DeleteRole([FromRoute] string roleName)
     {
-        var role = await _roleRepository.FindAsync(r => r.Name == roleName);
+        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
         
         if (role == null)
             return NotFound(new { message = "Role not found." });
         
-        await _roleRepository.RemoveAsync(role);
+        _dbContext.Roles.Remove(role);
+        await _dbContext.SaveChangesAsync();
         
         return Ok(new { message = "Role deleted successfully." });
     }

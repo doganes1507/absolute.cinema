@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Absolute.Cinema.IdentityService.Data;
 using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.DataObjects.IdentityController;
 using Absolute.Cinema.IdentityService.Interfaces;
@@ -8,7 +9,7 @@ using Absolute.Cinema.Shared.KafkaEvents;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Role = Absolute.Cinema.IdentityService.Models.Role;
+using Microsoft.EntityFrameworkCore;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
@@ -16,30 +17,27 @@ namespace Absolute.Cinema.IdentityService.Controllers;
 [Route("identity-service")]
 public class IdentityController : ControllerBase
 {
-    private readonly IRepository<User> _userRepository;
-    private readonly IRepository<Role> _roleRepository;
     private readonly ICacheService _cacheService;
     private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
     private readonly IConfiguration _configuration;
     private readonly IProducerAccessor _producerAccessor;
+    private readonly ApplicationDbContext _dbContext;
 
     public IdentityController(
-        IRepository<User> userRepository,
-        IRepository<Role> roleRepository,
         ICacheService cacheService,
         IMailService mailService,
         ITokenProvider tokenProvider,
         IConfiguration configuration,
-        IProducerAccessor producerAccessor)
+        IProducerAccessor producerAccessor,
+        ApplicationDbContext dbContext)
     {
-        _userRepository = userRepository;
-        _roleRepository = roleRepository;
         _cacheService = cacheService;
         _mailService = mailService;
         _tokenProvider = tokenProvider;
         _configuration = configuration;
         _producerAccessor = producerAccessor;
+        _dbContext = dbContext;
     }
 
     [HttpPost("SendEmailCode")]
@@ -100,17 +98,18 @@ public class IdentityController : ControllerBase
             return BadRequest(new {message = "Email address is not verified"});
 
         var message = "User successfully logged in";
-        var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
+        var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == dto.EmailAddress);
 
         if (user == null)
         {
-            var role = await _roleRepository.FindAsync(r => r.Name == "User");
+            var role = await _dbContext.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name == "User");
             
             if (role == null)
                 return BadRequest(new {message = "No role for user was found"});
             
             user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
-            await _userRepository.CreateAsync(user);
+            await _dbContext.Users.AddAsync(user);
+            await _dbContext.SaveChangesAsync();
             
             var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
             await producer.ProduceAsync(
@@ -134,6 +133,7 @@ public class IdentityController : ControllerBase
         {
             accessToken,
             refreshToken,
+            userId = user.Id.ToString(),
             message
         });
     }
@@ -141,7 +141,7 @@ public class IdentityController : ControllerBase
     [HttpPost("AuthenticateWithPassword")]
     public async Task<IActionResult> AuthenticateWithPassword([FromBody] AuthenticateWithPasswordDto dto)
     {        
-        var user = await _userRepository.FindAsync(u => u.EmailAddress == dto.EmailAddress);
+        var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == dto.EmailAddress);
         if (user == null)
             return Unauthorized(new { message = "Invalid credentials" });
         
@@ -162,6 +162,7 @@ public class IdentityController : ControllerBase
         {
             accessToken,
             refreshToken,
+            userId = user.Id.ToString(),
             message = "User successfully logged in"
         });
     }
@@ -177,7 +178,7 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
 
-        var user = await _userRepository.GetByIdAsync(Guid.Parse(userId));
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound(new { message = "User not found" });
 
@@ -192,7 +193,7 @@ public class IdentityController : ControllerBase
             return BadRequest(new {message = "New email address is not verified"});
         
         user.EmailAddress = dto.NewEmailAddress;
-        await _userRepository.UpdateAsync(user);
+        await _dbContext.SaveChangesAsync();
 
         var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("Kafka:ProducerName"));
         await producer.ProduceAsync(
@@ -213,7 +214,6 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
-
         var accessToken = _tokenProvider.GetAccessToken(user);
         var refreshToken = _tokenProvider.GetRefreshToken();
         
@@ -243,12 +243,12 @@ public class IdentityController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _userRepository.GetByIdAsync(Guid.Parse(userId));
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound("User not found");
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-        await _userRepository.UpdateAsync(user);
+        await _dbContext.SaveChangesAsync();
         
         if (_cacheService.IsConnected(getRequestsDbId))
         {
@@ -264,13 +264,17 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
-        return Ok("Password successfully updated");
+        return Ok(new
+        {
+            userId = user.Id.ToString(),
+            message = "Password successfully updated"
+        });
     }
 
     [HttpPost("RefreshToken")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
     {
-        var user = await _userRepository.GetByIdAsync(dto.UserId);
+        var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == dto.UserId);
 
         if (user == null)
             return NotFound("User not found");
