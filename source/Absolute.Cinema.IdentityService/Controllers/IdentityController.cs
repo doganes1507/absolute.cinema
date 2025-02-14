@@ -213,7 +213,23 @@ public class IdentityController : ControllerBase
                 getRequestsDbId);
         }
         
-        return Ok(new {message = "Email address successfully updated"});
+
+        var accessToken = _tokenProvider.GetAccessToken(user);
+        var refreshToken = _tokenProvider.GetRefreshToken();
+        
+        await _cacheService.SetAsync(
+            user.Id.ToString(),
+            refreshToken,
+            TimeSpan.FromDays(_configuration.GetValue<int>("TokenSettings:RefreshToken:ExpirationInDays")),
+            _configuration.GetValue<int>("Redis:RefreshTokensDatabaseId")
+        );
+        
+        return Ok(new
+        {
+            accessToken,
+            refreshToken,
+            message = "Email address updated"
+        });
     }
 
     [Authorize]
