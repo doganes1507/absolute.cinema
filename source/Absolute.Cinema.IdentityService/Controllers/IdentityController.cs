@@ -305,4 +305,27 @@ public class IdentityController : ControllerBase
         });
     }
     
+    [Authorize]
+    [HttpDelete("DeleteUser")]
+    public async Task<IActionResult> DeleteUser()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+            return Unauthorized();
+        
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+        if (user == null)
+            return NotFound(new {message = "User not found"});
+        
+        _dbContext.Users.Remove(user);
+        await _dbContext.SaveChangesAsync();
+        
+        var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+        await producer.ProduceAsync(
+            messageKey: null,
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Delete));
+        
+        return Ok(new { message = "User successfully deleted" });
+    }
+    
 }
