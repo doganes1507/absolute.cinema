@@ -103,12 +103,12 @@ public class IdentityController : ControllerBase
 
         if (user == null)
         {
-            var role = await _dbContext.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name == "User");
+            var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "User");
             
             if (role == null)
                 return BadRequest(new {message = "No role for user was found"});
             
-            user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
+            user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id};
             await _dbContext.Users.AddAsync(user);
             await _dbContext.SaveChangesAsync();
             
