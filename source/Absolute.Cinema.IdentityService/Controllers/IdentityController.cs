@@ -6,6 +6,7 @@ using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.Shared.Interfaces;
 using Absolute.Cinema.Shared.KafkaEvents;
+using Absolute.Cinema.Shared.Models.Enumerations;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -114,7 +115,7 @@ public class IdentityController : ControllerBase
             var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
             await producer.ProduceAsync(
                 messageKey: null,
-                messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+                messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Create));
             
             message = "User successfully registered";
         }
@@ -198,7 +199,7 @@ public class IdentityController : ControllerBase
         var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("Kafka:ProducerName"));
         await producer.ProduceAsync(
             messageKey: null,
-            messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Update));
         
         if (_cacheService.IsConnected(getRequestsDbId))
         {
@@ -245,7 +246,7 @@ public class IdentityController : ControllerBase
         
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
-            return NotFound("User not found");
+            return NotFound(new {message = "User not found"});
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         await _dbContext.SaveChangesAsync();
@@ -303,4 +304,5 @@ public class IdentityController : ControllerBase
             message = "Token successfully refreshed"
         });
     }
+    
 }

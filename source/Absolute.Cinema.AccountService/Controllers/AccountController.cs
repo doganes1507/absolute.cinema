@@ -78,7 +78,7 @@ public class AccountController : ControllerBase
             var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
             await _cacheService.SetAsync(userId, user, expiry);
         }
-
+        
         return Ok(new {message = "Personal info updated successfully."});
     }
 }

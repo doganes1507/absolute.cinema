@@ -3,6 +3,7 @@ using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.Shared.Interfaces;
 using Absolute.Cinema.Shared.KafkaEvents;
+using Absolute.Cinema.Shared.Models.Enumerations;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,7 +55,7 @@ public class AdminController : ControllerBase
         var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
         await producer.ProduceAsync(
             messageKey: null,
-            messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Create));
         
         return Ok(new
         {
@@ -173,7 +174,7 @@ public class AdminController : ControllerBase
             var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
             await producer.ProduceAsync(
                 messageKey: null,
-                messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+                messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Update));
         }
         
         if (_cacheService.IsConnected(getRequestsDbId))
@@ -210,6 +211,11 @@ public class AdminController : ControllerBase
 
         _dbContext.Users.Remove(user);
         await _dbContext.SaveChangesAsync();
+        
+        var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+        await producer.ProduceAsync(
+            messageKey: null,
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Delete));
         
         return Ok(new { message = "User deleted successfully." });
     }
