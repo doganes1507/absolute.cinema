@@ -17,42 +17,53 @@ public class CachedRepository : ICachedRepository
         _defaultExpiry = options.DefaultExpiry;
     }
 
-    public async Task<T?> ReadAsync<T>(Func<Task<T?>> dbFetch, string key, TimeSpan? expiry = null, int dbIndex = 0)
+    public async Task<T?> ReadAsync<T>(Func<Task<T?>> dbFetchFunc, string cacheKey, TimeSpan? expiry = null, int dbIndex = 0)
         where T : class
     {
         if (_cacheService.IsConnected())
         {
-            var cachedEntity = await _cacheService.GetAsync<T>(key, dbIndex);
+            var cachedEntity = await _cacheService.GetAsync<T>(cacheKey, dbIndex);
             if (cachedEntity is not null)
             {
                 return cachedEntity;
             }
         }
 
-        var entity = await dbFetch();
+        var entity = await dbFetchFunc();
 
         if (entity is not null && _cacheService.IsConnected())
         {
-            await _cacheService.SetAsync(key, entity, expiry ?? _defaultExpiry, dbIndex);
+            await _cacheService.SetAsync(cacheKey, entity, expiry ?? _defaultExpiry, dbIndex);
         }
 
         return entity;
     }
 
-    public async Task WriteAsync<T>(T entity, string key, TimeSpan? expiry = null, int dbIndex = 0) where T : class
+    public async Task<T?> WriteAsync<T>(Func<Task<T?>> dbWriteFunc, string cacheKey, TimeSpan? expiry = null, int dbIndex = 0)
+        where T : class
+    {
+        var entity = await dbWriteFunc();
+
+        if (entity is not null && _cacheService.IsConnected())
+            await _cacheService.SetAsync(cacheKey, entity, expiry ?? _defaultExpiry, dbIndex);
+
+        return entity;
+    }
+    
+    public async Task CreateAsync<T>(T entity, string cacheKey, TimeSpan? expiry = null, int dbIndex = 0) where T : class
     {
         await _dbContext.Set<T>().AddAsync(entity);
         await _dbContext.SaveChangesAsync();
 
         if (_cacheService.IsConnected())
         {
-            await _cacheService.SetAsync(key, entity, expiry ?? _defaultExpiry, dbIndex);
+            await _cacheService.SetAsync(cacheKey, entity, expiry ?? _defaultExpiry, dbIndex);
         }
     }
 
-    public async Task RemoveAsync<T>(Func<Task<T?>> dbFetch, string key, int dbIndex = 0) where T : class
+    public async Task RemoveAsync<T>(Func<Task<T?>> dbFetchFunc, string cacheKey, int dbIndex = 0) where T : class
     {
-        var entity = await dbFetch();
+        var entity = await dbFetchFunc();
         if (entity is not null)
         {
             _dbContext.Set<T>().Remove(entity);
@@ -61,7 +72,7 @@ public class CachedRepository : ICachedRepository
 
         if (_cacheService.IsConnected())
         {
-            await _cacheService.DeleteAsync(key, dbIndex);
+            await _cacheService.DeleteAsync(cacheKey, dbIndex);
         }
     }
 }
