@@ -12,8 +12,6 @@ public class SyncUserHandler(ApplicationDbContext dbContext, ICacheService cache
 {
     public async Task Handle(IMessageContext context, SyncUserEvent message)
     {
-        var user = await dbContext.Users.FindAsync(message.UserId);
-
         switch (message.Operation)
         {
             case DbOperation.Create:
@@ -26,8 +24,6 @@ public class SyncUserHandler(ApplicationDbContext dbContext, ICacheService cache
                 await HandleDelete(message);
                 break;
         }
-        
-        await dbContext.SaveChangesAsync();
     }
 
     private User CreateUserFromMessage(SyncUserEvent message)
