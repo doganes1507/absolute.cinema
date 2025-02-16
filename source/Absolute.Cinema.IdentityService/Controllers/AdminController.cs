@@ -3,10 +3,12 @@ using Absolute.Cinema.IdentityService.DataObjects.AdminController;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.Shared.Interfaces;
 using Absolute.Cinema.Shared.KafkaEvents;
+using Absolute.Cinema.Shared.Models.Enumerations;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualBasic;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
@@ -54,7 +56,7 @@ public class AdminController : ControllerBase
         var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
         await producer.ProduceAsync(
             messageKey: null,
-            messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Create));
         
         return Ok(new
         {
@@ -173,7 +175,7 @@ public class AdminController : ControllerBase
             var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
             await producer.ProduceAsync(
                 messageKey: null,
-                messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+                messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Update));
         }
         
         if (_cacheService.IsConnected(getRequestsDbId))
@@ -191,7 +193,6 @@ public class AdminController : ControllerBase
                 getRequestsDbId);
         }
         
-
         return Ok(new
         {
             updatedUserId = user.Id.ToString(),
@@ -210,6 +211,22 @@ public class AdminController : ControllerBase
 
         _dbContext.Users.Remove(user);
         await _dbContext.SaveChangesAsync();
+        
+        var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+        await producer.ProduceAsync(
+            messageKey: null,
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Delete)
+            );
+
+        await _cacheService.DeleteAsync(
+            user.EmailAddress,
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+            );
+
+        await _cacheService.DeleteAsync(
+            user.Id.ToString(),
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+            );
         
         return Ok(new { message = "User deleted successfully." });
     }
