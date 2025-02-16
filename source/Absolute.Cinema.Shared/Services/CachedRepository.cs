@@ -1,5 +1,6 @@
 using Absolute.Cinema.Shared.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Absolute.Cinema.Shared.Services;
 
@@ -7,14 +8,17 @@ public class CachedRepository : ICachedRepository
 {
     private readonly DbContext _dbContext;
     private readonly ICacheService _cacheService;
-    
-    public CachedRepository(DbContext dbContext, ICacheService cacheService)
+    private readonly TimeSpan? _defaultExpiry;
+
+    public CachedRepository(DbContext dbContext, ICacheService cacheService, CachedRepositoryOptions options)
     {
         _dbContext = dbContext;
         _cacheService = cacheService;
+        _defaultExpiry = options.DefaultExpiry;
     }
-    
-    public async Task<T?> ReadAsync<T>(Func<Task<T?>> dbFetch, string key, TimeSpan? expiry = null, int dbIndex = 0) where T : class
+
+    public async Task<T?> ReadAsync<T>(Func<Task<T?>> dbFetch, string key, TimeSpan? expiry = null, int dbIndex = 0)
+        where T : class
     {
         if (_cacheService.IsConnected())
         {
@@ -26,12 +30,12 @@ public class CachedRepository : ICachedRepository
         }
 
         var entity = await dbFetch();
-    
+
         if (entity is not null && _cacheService.IsConnected())
         {
-            await _cacheService.SetAsync(key, entity, expiry, dbIndex);
+            await _cacheService.SetAsync(key, entity, expiry ?? _defaultExpiry, dbIndex);
         }
-    
+
         return entity;
     }
 
@@ -42,7 +46,7 @@ public class CachedRepository : ICachedRepository
 
         if (_cacheService.IsConnected())
         {
-            await _cacheService.SetAsync(key, entity, expiry, dbIndex);
+            await _cacheService.SetAsync(key, entity, expiry ?? _defaultExpiry, dbIndex);
         }
     }
 
@@ -59,5 +63,34 @@ public class CachedRepository : ICachedRepository
         {
             await _cacheService.DeleteAsync(key, dbIndex);
         }
+    }
+}
+
+public static class CachedRepositoryExtensions
+{
+    public static IServiceCollection AddCachedRepository(this IServiceCollection services,
+        Action<CachedRepositoryOptions>? optionsDelegate = null)
+    {
+        var options = new CachedRepositoryOptions();
+        optionsDelegate?.Invoke(options);
+
+        services.AddScoped<ICachedRepository>(provider => new CachedRepository(
+            provider.GetRequiredService<DbContext>(),
+            provider.GetRequiredService<ICacheService>(),
+            options
+        ));
+
+        return services;
+    }
+}
+
+public class CachedRepositoryOptions
+{
+    public TimeSpan? DefaultExpiry { get; private set; }
+
+    public CachedRepositoryOptions WithDefaultExpiry(TimeSpan? expiry = null)
+    {
+        DefaultExpiry = expiry;
+        return this;
     }
 }
