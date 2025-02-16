@@ -209,7 +209,8 @@ public class IdentityController : ControllerBase
                 getRequestsTimeSpan, 
                 getRequestsDbId);
             
-            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
+            await _cacheService.SetAsync<UserResponseDto?>(
+                user.Id.ToString(),
                 UserResponseDto.FormDto(user),
                 getRequestsTimeSpan, 
                 getRequestsDbId);
@@ -237,9 +238,6 @@ public class IdentityController : ControllerBase
     [HttpPost("UpdatePassword")]
     public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDto dto)
     {
-        var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
-        var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
-        
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
@@ -250,20 +248,6 @@ public class IdentityController : ControllerBase
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         await _dbContext.SaveChangesAsync();
-        
-        if (_cacheService.IsConnected(getRequestsDbId))
-        {
-            await _cacheService.SetAsync<UserResponseDto?>(
-                user.EmailAddress, 
-                UserResponseDto.FormDto(user),
-                getRequestsTimeSpan, 
-                getRequestsDbId);
-            
-            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
-                UserResponseDto.FormDto(user), 
-                getRequestsTimeSpan, 
-                getRequestsDbId);
-        }
         
         return Ok(new
         {
@@ -324,6 +308,16 @@ public class IdentityController : ControllerBase
         await producer.ProduceAsync(
             messageKey: null,
             messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Delete));
+
+        await _cacheService.DeleteAsync(
+            user.EmailAddress,
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+        );
+
+        await _cacheService.DeleteAsync(
+            user.Id.ToString(),
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+        );
         
         return Ok(new { message = "User successfully deleted" });
     }

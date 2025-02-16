@@ -8,6 +8,7 @@ using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualBasic;
 
 namespace Absolute.Cinema.IdentityService.Controllers;
 
@@ -192,7 +193,6 @@ public class AdminController : ControllerBase
                 getRequestsDbId);
         }
         
-
         return Ok(new
         {
             updatedUserId = user.Id.ToString(),
@@ -215,7 +215,18 @@ public class AdminController : ControllerBase
         var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
         await producer.ProduceAsync(
             messageKey: null,
-            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Delete));
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Delete)
+            );
+
+        await _cacheService.DeleteAsync(
+            user.EmailAddress,
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+            );
+
+        await _cacheService.DeleteAsync(
+            user.Id.ToString(),
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+            );
         
         return Ok(new { message = "User deleted successfully." });
     }
