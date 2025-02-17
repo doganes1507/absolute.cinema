@@ -1,6 +1,6 @@
 namespace Absolute.Cinema.Shared.Interfaces;
 
-public interface ICachedRepository
+public interface ICacheAsideService
 {
     public Task<T?> ReadAsync<T>(Func<Task<T?>> dbFetchFunc, string cacheKey, TimeSpan? expiry = null, int dbIndex = 0)
         where T : class;

@@ -4,13 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Absolute.Cinema.Shared.Services;
 
-public class CachedRepository<TContext> : ICachedRepository where TContext : DbContext
+public class CacheAsideService<TContext> : ICacheAsideService where TContext : DbContext
 {
     private readonly TContext _dbContext;
     private readonly ICacheService _cacheService;
     private readonly TimeSpan? _defaultExpiry;
 
-    public CachedRepository(TContext dbContext, ICacheService cacheService, CachedRepositoryOptions options)
+    public CacheAsideService(TContext dbContext, ICacheService cacheService, CacheAsideServiceOptions options)
     {
         _dbContext = dbContext;
         _cacheService = cacheService;
@@ -77,15 +77,15 @@ public class CachedRepository<TContext> : ICachedRepository where TContext : DbC
     }
 }
 
-public static class CachedRepositoryExtensions
+public static class CacheAsideServiceExtensions
 {
-    public static IServiceCollection AddCachedRepository<TContext>(this IServiceCollection services,
-        Action<CachedRepositoryOptions>? optionsDelegate = null) where TContext : DbContext
+    public static IServiceCollection AddCacheAsideService<TContext>(this IServiceCollection services,
+        Action<CacheAsideServiceOptions>? optionsDelegate = null) where TContext : DbContext
     {
-        var options = new CachedRepositoryOptions();
+        var options = new CacheAsideServiceOptions();
         optionsDelegate?.Invoke(options);
 
-        services.AddScoped<ICachedRepository>(provider => new CachedRepository<TContext>(
+        services.AddScoped<ICacheAsideService>(provider => new CacheAsideService<TContext>(
             provider.GetRequiredService<TContext>(),
             provider.GetRequiredService<ICacheService>(),
             options
@@ -95,11 +95,11 @@ public static class CachedRepositoryExtensions
     }
 }
 
-public class CachedRepositoryOptions
+public class CacheAsideServiceOptions
 {
     public TimeSpan? DefaultExpiry { get; private set; }
 
-    public CachedRepositoryOptions WithDefaultExpiry(TimeSpan? expiry = null)
+    public CacheAsideServiceOptions WithDefaultExpiry(TimeSpan? expiry = null)
     {
         DefaultExpiry = expiry;
         return this;

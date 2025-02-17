@@ -13,12 +13,12 @@ namespace Absolute.Cinema.AccountService.Controllers;
 public class AccountController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly ICachedRepository _cachedRepository;
+    private readonly ICacheAsideService _cacheAsideService;
 
-    public AccountController(ApplicationDbContext dbContext, ICachedRepository cachedRepository)
+    public AccountController(ApplicationDbContext dbContext, ICacheAsideService cacheAsideService)
     {
         _dbContext = dbContext;
-        _cachedRepository = cachedRepository;
+        _cacheAsideService = cacheAsideService;
     }
     
     [Authorize]
@@ -29,7 +29,7 @@ public class AccountController : ControllerBase
         if (userId == null)
             return Unauthorized();
 
-        var user = await _cachedRepository.ReadAsync(
+        var user = await _cacheAsideService.ReadAsync(
             dbFetchFunc: async () => await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId)),
             cacheKey: userId
         );
@@ -48,7 +48,7 @@ public class AccountController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _cachedRepository.WriteAsync(
+        var user = await _cacheAsideService.WriteAsync(
             dbWriteFunc: async () =>
             {
                 var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
