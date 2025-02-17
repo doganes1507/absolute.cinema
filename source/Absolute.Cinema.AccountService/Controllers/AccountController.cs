@@ -1,11 +1,10 @@
 using System.Security.Claims;
 using Absolute.Cinema.AccountService.Data;
 using Absolute.Cinema.AccountService.DataObjects;
-using Absolute.Cinema.AccountService.Models;
-using Absolute.Cinema.AccountService.Models.Enumerations;
 using Absolute.Cinema.Shared.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Absolute.Cinema.AccountService.Controllers;
 
@@ -14,14 +13,12 @@ namespace Absolute.Cinema.AccountService.Controllers;
 public class AccountController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly ICacheService _cacheService;
-    private readonly IConfiguration _configuration;
-    
-    public AccountController(ApplicationDbContext dbContext, ICacheService cacheService, IConfiguration configuration)
+    private readonly ICachedRepository<ApplicationDbContext> _cachedRepository;
+
+    public AccountController(ApplicationDbContext dbContext, ICachedRepository<ApplicationDbContext> cachedRepository)
     {
         _dbContext = dbContext;
-        _cacheService = cacheService;
-        _configuration = configuration;
+        _cachedRepository = cachedRepository;
     }
     
     [Authorize]
@@ -31,26 +28,14 @@ public class AccountController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
-        
-        User? user;
-        if (_cacheService.IsConnected())
-        {
-            user = _cacheService.GetAsync<User>(userId).Result;
 
-            if (user != null)
-                return Ok(user);
-        }
+        var user = await _cachedRepository.ReadAsync(
+            dbFetchFunc: async () => await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId)),
+            cacheKey: userId
+        );
 
-        // compare performance with: user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId));
-        user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
             return NotFound("User not found.");
-
-        if (_cacheService.IsConnected())
-        {
-            var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
-            await _cacheService.SetAsync(userId, user, expiry);
-        }
 
         return Ok(user);
     }
@@ -63,21 +48,25 @@ public class AccountController : ControllerBase
         if (userId == null)
             return Unauthorized();
         
-        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+        var user = await _cachedRepository.WriteAsync(
+            dbWriteFunc: async () =>
+            {
+                var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+                if (user == null) return null;
+                
+                if (dto.FirstName != null) user.FirstName = dto.FirstName;
+                if (dto.DateOfBirth.HasValue) user.DateOfBirth = dto.DateOfBirth.Value;
+                if (dto.Gender != null) user.Gender = dto.Gender.Value;
+                
+                await _dbContext.SaveChangesAsync();
+                
+                return user;
+            },
+            cacheKey: userId
+        );
+        
         if (user == null)
             return NotFound("User not found.");
-        
-        if (dto.FirstName != null) user.FirstName = dto.FirstName;
-        if (dto.DateOfBirth.HasValue) user.DateOfBirth = dto.DateOfBirth.Value;
-        if (dto.Gender != null) user.Gender = dto.Gender.Value;
-        
-        await _dbContext.SaveChangesAsync();
-
-        if (_cacheService.IsConnected())
-        {
-            var expiry = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:UserCacheTimeMinutes"));
-            await _cacheService.SetAsync(userId, user, expiry);
-        }
 
         return Ok(new {message = "Personal info updated successfully."});
     }
