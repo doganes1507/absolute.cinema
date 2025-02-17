@@ -30,7 +30,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
 builder.Services.AddCacheAsideService<ApplicationDbContext>(options => options
-    .WithDefaultExpiry(TimeSpan.FromMinutes(5))
+    .WithDefaultExpiry(TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("Redis:UserCacheTimeMinutes")))
 );
 
 // Configure Kafka consumer
