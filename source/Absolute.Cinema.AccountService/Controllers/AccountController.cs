@@ -67,7 +67,7 @@ public class AccountController : ControllerBase
         
         if (user == null)
             return NotFound("User not found.");
-
+        
         return Ok(new {message = "Personal info updated successfully."});
     }
 }

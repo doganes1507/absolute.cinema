@@ -6,6 +6,7 @@ using Absolute.Cinema.IdentityService.Interfaces;
 using Absolute.Cinema.IdentityService.Models;
 using Absolute.Cinema.Shared.Interfaces;
 using Absolute.Cinema.Shared.KafkaEvents;
+using Absolute.Cinema.Shared.Models.Enumerations;
 using KafkaFlow.Producers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -102,19 +103,19 @@ public class IdentityController : ControllerBase
 
         if (user == null)
         {
-            var role = await _dbContext.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name == "User");
+            var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "User");
             
             if (role == null)
                 return BadRequest(new {message = "No role for user was found"});
             
-            user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id };
+            user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id};
             await _dbContext.Users.AddAsync(user);
             await _dbContext.SaveChangesAsync();
             
             var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
             await producer.ProduceAsync(
                 messageKey: null,
-                messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+                messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Create));
             
             message = "User successfully registered";
         }
@@ -198,7 +199,7 @@ public class IdentityController : ControllerBase
         var producer = _producerAccessor.GetProducer(_configuration.GetValue<string>("Kafka:ProducerName"));
         await producer.ProduceAsync(
             messageKey: null,
-            messageValue: new SyncUserEvent(user.Id, user.EmailAddress));
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Update));
         
         if (_cacheService.IsConnected(getRequestsDbId))
         {
@@ -208,7 +209,8 @@ public class IdentityController : ControllerBase
                 getRequestsTimeSpan, 
                 getRequestsDbId);
             
-            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
+            await _cacheService.SetAsync<UserResponseDto?>(
+                user.Id.ToString(),
                 UserResponseDto.FormDto(user),
                 getRequestsTimeSpan, 
                 getRequestsDbId);
@@ -236,33 +238,16 @@ public class IdentityController : ControllerBase
     [HttpPost("UpdatePassword")]
     public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDto dto)
     {
-        var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
-        var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
-        
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
             return Unauthorized();
         
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
-            return NotFound("User not found");
+            return NotFound(new {message = "User not found"});
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         await _dbContext.SaveChangesAsync();
-        
-        if (_cacheService.IsConnected(getRequestsDbId))
-        {
-            await _cacheService.SetAsync<UserResponseDto?>(
-                user.EmailAddress, 
-                UserResponseDto.FormDto(user),
-                getRequestsTimeSpan, 
-                getRequestsDbId);
-            
-            await _cacheService.SetAsync<UserResponseDto?>(user.Id.ToString(),
-                UserResponseDto.FormDto(user), 
-                getRequestsTimeSpan, 
-                getRequestsDbId);
-        }
         
         return Ok(new
         {
@@ -303,4 +288,38 @@ public class IdentityController : ControllerBase
             message = "Token successfully refreshed"
         });
     }
+    
+    [Authorize]
+    [HttpDelete("DeleteUser")]
+    public async Task<IActionResult> DeleteUser()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+            return Unauthorized();
+        
+        var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
+        if (user == null)
+            return NotFound(new {message = "User not found"});
+        
+        _dbContext.Users.Remove(user);
+        await _dbContext.SaveChangesAsync();
+        
+        var producer = _producerAccessor[_configuration["Kafka:ProducerName"]];
+        await producer.ProduceAsync(
+            messageKey: null,
+            messageValue: new SyncUserEvent(user.Id, user.EmailAddress, DbOperation.Delete));
+
+        await _cacheService.DeleteAsync(
+            user.EmailAddress,
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+        );
+
+        await _cacheService.DeleteAsync(
+            user.Id.ToString(),
+            _configuration.GetValue<int>("Redis:GetRequestsDbId")
+        );
+        
+        return Ok(new { message = "User successfully deleted" });
+    }
+    
 }
