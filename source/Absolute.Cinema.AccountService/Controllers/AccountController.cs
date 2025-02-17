@@ -13,9 +13,9 @@ namespace Absolute.Cinema.AccountService.Controllers;
 public class AccountController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly ICachedRepository<ApplicationDbContext> _cachedRepository;
+    private readonly ICachedRepository _cachedRepository;
 
-    public AccountController(ApplicationDbContext dbContext, ICachedRepository<ApplicationDbContext> cachedRepository)
+    public AccountController(ApplicationDbContext dbContext, ICachedRepository cachedRepository)
     {
         _dbContext = dbContext;
         _cachedRepository = cachedRepository;
