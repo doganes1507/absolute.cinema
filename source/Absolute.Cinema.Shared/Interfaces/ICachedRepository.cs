@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Absolute.Cinema.Shared.Interfaces;
 
-public interface ICachedRepository
+public interface ICachedRepository<TContext> where TContext : DbContext
 {
     public Task<T?> ReadAsync<T>(Func<Task<T?>> dbFetchFunc, string cacheKey, TimeSpan? expiry = null, int dbIndex = 0)
         where T : class;

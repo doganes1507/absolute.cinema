@@ -4,13 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Absolute.Cinema.Shared.Services;
 
-public class CachedRepository : ICachedRepository
+public class CachedRepository<TContext> : ICachedRepository<TContext> where TContext : DbContext
 {
-    private readonly DbContext _dbContext;
+    private readonly TContext _dbContext;
     private readonly ICacheService _cacheService;
     private readonly TimeSpan? _defaultExpiry;
 
-    public CachedRepository(DbContext dbContext, ICacheService cacheService, CachedRepositoryOptions options)
+    public CachedRepository(TContext dbContext, ICacheService cacheService, CachedRepositoryOptions options)
     {
         _dbContext = dbContext;
         _cacheService = cacheService;
@@ -79,14 +79,14 @@ public class CachedRepository : ICachedRepository
 
 public static class CachedRepositoryExtensions
 {
-    public static IServiceCollection AddCachedRepository(this IServiceCollection services,
-        Action<CachedRepositoryOptions>? optionsDelegate = null)
+    public static IServiceCollection AddCachedRepository<TContext>(this IServiceCollection services,
+        Action<CachedRepositoryOptions>? optionsDelegate = null) where TContext : DbContext
     {
         var options = new CachedRepositoryOptions();
         optionsDelegate?.Invoke(options);
 
-        services.AddScoped<ICachedRepository>(provider => new CachedRepository(
-            provider.GetRequiredService<DbContext>(),
+        services.AddScoped<ICachedRepository<TContext>>(provider => new CachedRepository<TContext>(
+            provider.GetRequiredService<TContext>(),
             provider.GetRequiredService<ICacheService>(),
             options
         ));
