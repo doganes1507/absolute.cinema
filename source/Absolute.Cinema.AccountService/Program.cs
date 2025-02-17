@@ -29,6 +29,10 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
+builder.Services.AddCacheAsideService<ApplicationDbContext>(options => options
+    .WithDefaultExpiry(TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("Redis:UserCacheTimeMinutes")))
+);
+
 // Configure Kafka consumer
 builder.Services.AddKafkaFlowHostedService(
     kafka => kafka
