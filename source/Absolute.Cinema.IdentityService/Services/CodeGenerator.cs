@@ -38,7 +38,6 @@ public class CodeGenerator : ICodeGenerator
         for (var i = repeatCount; i < length; i++)
         {
             var nextDigit = availableDigits[_random.Next(availableDigits.Count)];
-            availableDigits.Remove(nextDigit);
             number[i] = nextDigit;
         }
 
