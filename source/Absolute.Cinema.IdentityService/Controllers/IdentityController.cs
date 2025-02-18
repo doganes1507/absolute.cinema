@@ -21,6 +21,7 @@ public class IdentityController : ControllerBase
     private readonly ICacheService _cacheService;
     private readonly IMailService _mailService;
     private readonly ITokenProvider _tokenProvider;
+    private readonly ICodeGenerator _codeGenerator;
     private readonly IConfiguration _configuration;
     private readonly IProducerAccessor _producerAccessor;
     private readonly ApplicationDbContext _dbContext;
@@ -29,6 +30,7 @@ public class IdentityController : ControllerBase
         ICacheService cacheService,
         IMailService mailService,
         ITokenProvider tokenProvider,
+        ICodeGenerator codeGenerator,
         IConfiguration configuration,
         IProducerAccessor producerAccessor,
         ApplicationDbContext dbContext)
@@ -36,6 +38,7 @@ public class IdentityController : ControllerBase
         _cacheService = cacheService;
         _mailService = mailService;
         _tokenProvider = tokenProvider;
+        _codeGenerator = codeGenerator;
         _configuration = configuration;
         _producerAccessor = producerAccessor;
         _dbContext = dbContext;
@@ -44,8 +47,7 @@ public class IdentityController : ControllerBase
     [HttpPost("SendEmailCode")]
     public async Task<IActionResult> SendEmailCode([FromBody] SendEmailCodeDto dto)
     {
-        var rnd = new Random();
-        var code = rnd.Next(100000, 999999);
+        var code = _codeGenerator.GenerateConfirmationCode();
 
         await _cacheService.SetAsync(
             dto.EmailAddress,

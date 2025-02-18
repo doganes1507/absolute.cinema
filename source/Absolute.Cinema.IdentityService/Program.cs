@@ -55,6 +55,10 @@ builder.Services.AddKafka(
 // Configure Token provider
 builder.Services.AddTransient<ITokenProvider, TokenProvider>();
 
+// Configure Code Generator
+builder.Services.Configure<CodeGeneratorOptions>(builder.Configuration.GetSection("CodeGeneration"));
+builder.Services.AddTransient<ICodeGenerator, CodeGenerator>();
+
 // Configure Validation
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddTransient<IValidator<SendEmailCodeDto>, SendEmailCodeDtoValidator>();
