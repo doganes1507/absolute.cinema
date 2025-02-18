@@ -29,7 +29,7 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> GetPersonalInfo()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
+        if (userId is null)
             return Unauthorized();
         
         User? user;
@@ -37,13 +37,13 @@ public class AccountController : ControllerBase
         {
             user = _cacheService.GetAsync<User>(userId).Result;
 
-            if (user != null)
+            if (user is not null)
                 return Ok(user);
         }
 
         // compare performance with: user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId));
         user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
-        if (user == null)
+        if (user is null)
             return NotFound("User not found.");
 
         if (_cacheService.IsConnected())
@@ -60,16 +60,16 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> UpdatePersonalInfo([FromBody] UpdatePersonalInfoDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
+        if (userId is null)
             return Unauthorized();
         
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
-        if (user == null)
+        if (user is null)
             return NotFound("User not found.");
         
-        if (dto.FirstName != null) user.FirstName = dto.FirstName;
+        if (dto.FirstName is not null) user.FirstName = dto.FirstName;
         if (dto.DateOfBirth.HasValue) user.DateOfBirth = dto.DateOfBirth.Value;
-        if (dto.Gender != null) user.Gender = dto.Gender.Value;
+        if (dto.Gender is not null) user.Gender = dto.Gender.Value;
         
         await _dbContext.SaveChangesAsync();
 
