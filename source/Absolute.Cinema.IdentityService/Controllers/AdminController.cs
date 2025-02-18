@@ -38,7 +38,7 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
     {
         var role = await _dbContext.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name == dto.Role);
-        if (role == null)
+        if (role is null)
             return BadRequest(new { message = "Such role does not exist." });
         
         if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == dto.EmailAddress))
@@ -48,7 +48,7 @@ public class AdminController : ControllerBase
         {
             EmailAddress = dto.EmailAddress,
             RoleId = role.Id,
-            HashPassword = dto.Password != null ? BCrypt.Net.BCrypt.HashPassword(dto.Password) : null
+            HashPassword = dto.Password is not null ? BCrypt.Net.BCrypt.HashPassword(dto.Password) : null
         };
         await _dbContext.Users.AddAsync(user);
         await _dbContext.SaveChangesAsync();
@@ -90,24 +90,24 @@ public class AdminController : ControllerBase
         var getRequestsDbId = _configuration.GetValue<int>("Redis:GetRequestsDbId");
         var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
         
-        if (userId == null && emailAddress == null)
+        if (userId is null && emailAddress is null)
             return BadRequest(new { message = "Either userId or emailAddress must be provided." });
         
         if (_cacheService.IsConnected(getRequestsDbId))
         {
-            var userCache = userId != null 
+            var userCache = userId is not null 
                 ? await _cacheService.GetAsync<UserResponseDto?>(userId.ToString()!, getRequestsDbId)
                 : await _cacheService.GetAsync<UserResponseDto?>(emailAddress!, getRequestsDbId);
 
-            if (userCache != null)
+            if (userCache is not null)
                 return Ok(userCache);
         }
         
-        var user = userId != null 
+        var user = userId is not null 
             ? await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value)
             : await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == emailAddress);
 
-        if (user == null)
+        if (user is null)
             return NotFound(new { message = "User not found." });
 
         var response = UserResponseDto.FormDto(user);
@@ -144,20 +144,20 @@ public class AdminController : ControllerBase
         var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
         
         var user = await _dbContext.Users.FindAsync(userId);
-        if (user == null)
+        if (user is null)
             return NotFound(new { message = "User not found." });
 
-        if (dto.NewRole != null)
+        if (dto.NewRole is not null)
         {
             var role = await _dbContext.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name == dto.NewRole);
             
-            if (role == null)
+            if (role is null)
                 return BadRequest(new { message = "Such role does not exist." });
             
             user.RoleId = role.Id;
         }
 
-        if (dto.NewEmailAddress != null)
+        if (dto.NewEmailAddress is not null)
         {
             if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
                 return BadRequest(new { message = "This email already in use." });
@@ -165,7 +165,7 @@ public class AdminController : ControllerBase
             user.EmailAddress = dto.NewEmailAddress;
         }
 
-        if (dto.NewPassword != null)
+        if (dto.NewPassword is not null)
             user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         
         await _dbContext.SaveChangesAsync();
@@ -206,7 +206,7 @@ public class AdminController : ControllerBase
     {
         var user = await _dbContext.Users.FindAsync(userId);
         
-        if (user == null)
+        if (user is null)
             return NotFound(new { message = "User not found." });
 
         _dbContext.Users.Remove(user);
@@ -237,7 +237,7 @@ public class AdminController : ControllerBase
     {
         var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
         
-        if (role == null)
+        if (role is null)
             return NotFound(new { message = "Role not found." });
         
         _dbContext.Roles.Remove(role);

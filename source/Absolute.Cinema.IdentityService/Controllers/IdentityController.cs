@@ -101,11 +101,11 @@ public class IdentityController : ControllerBase
         var message = "User successfully logged in";
         var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == dto.EmailAddress);
 
-        if (user == null)
+        if (user is null)
         {
             var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "User");
             
-            if (role == null)
+            if (role is null)
                 return BadRequest(new {message = "No role for user was found"});
             
             user = new User { EmailAddress = dto.EmailAddress, HashPassword = null, RoleId = role.Id};
@@ -143,7 +143,7 @@ public class IdentityController : ControllerBase
     public async Task<IActionResult> AuthenticateWithPassword([FromBody] AuthenticateWithPasswordDto dto)
     {        
         var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.EmailAddress == dto.EmailAddress);
-        if (user == null)
+        if (user is null)
             return Unauthorized(new { message = "Invalid credentials" });
         
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.HashPassword))
@@ -176,11 +176,11 @@ public class IdentityController : ControllerBase
         var getRequestsTimeSpan = TimeSpan.FromMinutes(_configuration.GetValue<int>("Redis:GetRequestExpirationInMinutes"));
         
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
+        if (userId is null)
             return Unauthorized();
 
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
-        if (user == null)
+        if (user is null)
             return NotFound(new { message = "User not found" });
 
         if (await _dbContext.Users.AnyAsync(u => u.EmailAddress == dto.NewEmailAddress))
@@ -239,11 +239,11 @@ public class IdentityController : ControllerBase
     public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
+        if (userId is null)
             return Unauthorized();
         
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
-        if (user == null)
+        if (user is null)
             return NotFound(new {message = "User not found"});
 
         user.HashPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
@@ -261,7 +261,7 @@ public class IdentityController : ControllerBase
     {
         var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == dto.UserId);
 
-        if (user == null)
+        if (user is null)
             return NotFound("User not found");
         
         var cacheRefreshToken = await _cacheService.GetAsync<string>(
@@ -294,11 +294,11 @@ public class IdentityController : ControllerBase
     public async Task<IActionResult> DeleteUser()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
+        if (userId is null)
             return Unauthorized();
         
         var user = await _dbContext.Users.FindAsync(Guid.Parse(userId));
-        if (user == null)
+        if (user is null)
             return NotFound(new {message = "User not found"});
         
         _dbContext.Users.Remove(user);

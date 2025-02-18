@@ -56,7 +56,7 @@ public class SyncUserHandler(ApplicationDbContext dbContext, ICacheService cache
     {
         var user = await dbContext.Users.FindAsync(message.UserId);
 
-        if (user == null)
+        if (user is null)
         {
             user = CreateUserFromMessage(message);
             await dbContext.Users.AddAsync(user);
@@ -78,7 +78,7 @@ public class SyncUserHandler(ApplicationDbContext dbContext, ICacheService cache
     private async Task HandleDelete(SyncUserEvent message)
     {
         var user = await dbContext.Users.FindAsync(message.UserId);
-        if (user != null)
+        if (user is not null)
             dbContext.Users.Remove(user);
         
         await dbContext.SaveChangesAsync();
